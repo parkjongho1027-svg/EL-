@@ -1,0 +1,1 @@
+# Pillow is optional: enables smoother on-screen rendering.

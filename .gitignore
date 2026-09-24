@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.log
+*.tmp
+user_data*.json
+*.zip
+dist/
+build/
+*.spec
