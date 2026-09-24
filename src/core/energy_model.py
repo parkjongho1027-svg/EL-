@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from .errors import CalculationInputError
+from .elevator_review_engine import scurve_profile
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +40,6 @@ class EnergyTripInput:
         if values['drive_efficiency'] > 1 or values['regen_efficiency'] > 1:
             raise CalculationInputError('효율은 0~1 사이여야 합니다.')
         return cls(**values,direction=direction)
-from .elevator_review_engine import scurve_profile
 
 
 def _finite(name, value, positive=False, nonnegative=False):
@@ -63,7 +63,8 @@ def estimate_trip(distance, vmax, amax, jerk, car_mass, load_mass, counterweight
         equivalent_extra_mass=equivalent_extra_mass,resistance=resistance,direction=direction,
         drive_efficiency=drive_efficiency,regen_efficiency=regen_efficiency,
         auxiliary_kw=auxiliary_kw,step=step)
-    eta=inputs.drive_efficiency;regen=inputs.regen_efficiency
+    eta=inputs.drive_efficiency
+    regen=inputs.regen_efficiency
     moving_mass=inputs.car_mass+inputs.load_mass+inputs.counterweight_mass+inputs.equivalent_extra_mass
     imbalance=(inputs.car_mass+inputs.load_mass-inputs.counterweight_mass)*9.80665*(1 if inputs.direction=='상승' else -1)
     force=imbalance+inputs.resistance
@@ -86,8 +87,10 @@ def estimate_trip(distance, vmax, amax, jerk, car_mass, load_mass, counterweight
             segments=((p0,p1,dt),)
         for a,b,interval in segments:
             area=(a+b)*interval/2/3600
-            if area >= 0: draw_kwh += area/eta
-            else: return_kwh += -area*regen
+            if area >= 0:
+                draw_kwh += area/eta
+            else:
+                return_kwh += -area*regen
         aux_kwh += inputs.auxiliary_kw*dt/3600
     profile.update(grid_kw_samples=grid_power, moving_mass_kg=moving_mass,
                    imbalance_force_n=imbalance, resistance_n=inputs.resistance,
@@ -121,20 +124,27 @@ def read_measurement(path, predicted):
             raise ValueError('CSV 헤더는 time_s,speed_m_s,grid_kw가 필요합니다.')
         rows=[]
         for row in reader:
-            if len(rows)>=100000: raise ValueError('실측 데이터는 10만 행 이하여야 합니다.')
-            try: t,v,p=(float(row[key]) for key in ('time_s','speed_m_s','grid_kw'))
-            except (TypeError,ValueError): raise ValueError('실측 CSV에 숫자가 아닌 값이 있습니다.') from None
+            if len(rows)>=100000:
+                raise ValueError('실측 데이터는 10만 행 이하여야 합니다.')
+            try:
+                t,v,p=(float(row[key]) for key in ('time_s','speed_m_s','grid_kw'))
+            except (TypeError,ValueError):
+                raise ValueError('실측 CSV에 숫자가 아닌 값이 있습니다.') from None
             if not all(math.isfinite(x) for x in (t,v,p)) or t<0 or v<0 or (rows and t<=rows[-1][0]):
                 raise ValueError('실측 시간은 0 이상 증가, 속도는 0 이상, 전력은 유한한 값이어야 합니다.')
             rows.append((t,v,p))
     if len(rows)<2 or rows[0][0]>0.2 or abs(rows[-1][0]-predicted['duration_s'])>max(0.5,predicted['duration_s']*0.05):
         raise ValueError('실측 CSV는 운행 시작부터 종료까지 포함해야 하며 예측 운행시간과 5% 또는 0.5초 이내로 맞아야 합니다.')
     energy=sum((b[0]-a[0])*(a[2]+b[2])/2/3600 for a,b in zip(rows,rows[1:]))
-    samples=predicted['samples'];i=0;error2=0.
+    samples=predicted['samples']
+    i=0
+    error2=0.
     for t,v,_ in rows:
-        if t>samples[-1][0]: expected=0.
+        if t>samples[-1][0]:
+            expected=0.
         else:
-            while i+1<len(samples)-1 and samples[i+1][0]<t:i+=1
+            while i+1<len(samples)-1 and samples[i+1][0]<t:
+                i+=1
             a,b=samples[i],samples[i+1]
             fraction=max(0.,min(1.,(t-a[0])/(b[0]-a[0])))
             expected=a[2]+fraction*(b[2]-a[2])

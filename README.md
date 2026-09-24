@@ -11,6 +11,7 @@ python main.py
 python main.py --self-test
 python -m pip install -r requirements-dev.txt
 python -m pytest -q tests
+sh scripts/verify.sh
 ```
 
 Windows 실행 파일을 직접 빌드할 경우, 동일한 폴더에서 `pyinstaller --onefile --windowed main.py`를 실행합니다. 이미지와 계산 모듈이 함께 포함되는지 빌드 결과를 확인하세요.
@@ -65,5 +66,7 @@ flowchart TD
 `tests/`의 pytest 테스트는 각 계산식을 독립 산술값과 비교하고 경계값·손상 설정 파일·작업 함수를 점검합니다. `test_motor_dynamics.py`는 33개의 파라미터 사례를 포함하며 축 환산/운전율/회생 분담에 대해 독립 기준과 상대 오차 `1e-8` 이하로 비교합니다. **이 수치는 구현에 대한 산술 검증 허용 오차이며, 실측 정확도나 공단 검증을 뜻하지 않습니다.** 공식 KOEL·교재 원문의 입력/정답이 확인된 20~30개 예제는 현재 포함되지 않습니다. KC 문서의 조항별 일부 검토만 구현되어 있고 EN 81-20/50 전체 적용이나 90% 커버리지 성과를 주장하지 않습니다. 기존의 `test_*.py` 자체 점검은 각각 실행할 수 있습니다.
 
 `.github/workflows/verify.yml`에는 push/PR 시 Python 3.12·3.14 계산 테스트 및 Windows 3.14 실행 파일 빌드와 아티팩트 업로드를 정의했습니다. 실행 상태는 [Actions 탭](https://github.com/parkjongho1027-svg/EL-/actions)에서 확인하세요. 이 README는 CI 녹색 상태, Windows 실제 동작, 90% 커버리지 또는 제조사 승인 결과를 증명하지 않습니다. `git log --oneline`으로 이력을 확인하세요.
+
+로컬 커밋 전 검사 설정: 개발 패키지를 설치한 뒤 `git config core.hooksPath .githooks`를 **클론마다 한 번** 실행합니다. Git이 자동 생성한 `.git/hooks/*.sample`은 그대로 두어도 됩니다. 추적되는 `.githooks/pre-commit`이 `scripts/verify.sh`를 실행하고, 같은 스크립트를 원격 CI가 실행합니다. staged 공백 검사와 `src/core`, `src/ui`, `tests`의 제한된 Ruff 규칙, 컴파일 및 57개 pytest·기존 자체 점검이 실행됩니다. `main.py` 전체에 대한 포맷터 적용은 아직 검증하지 않았습니다. 소스 경로·공개 버전·로컬 이력의 대응 관계는 [릴리스 이력](docs/RELEASE_HISTORY.md)을 확인하세요.
 
 남은 화면 모듈화, 공인 예제 확보, 실측 검증과 배포의 주차별 완료 조건은 [검증 계획](docs/VALIDATION_PLAN.md)에 정리했습니다.

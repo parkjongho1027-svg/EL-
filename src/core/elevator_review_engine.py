@@ -169,8 +169,10 @@ def scurve_profile(distance, vmax, amax, jerk, moving_mass, imbalance_force=0, s
         lo, hi = 0., vmax
         for _ in range(70):
             mid = (lo+hi)/2
-            if acceleration(mid)[2] > distance: hi = mid
-            else: lo = mid
+            if acceleration(mid)[2] > distance:
+                hi = mid
+            else:
+                lo = mid
         vp = (lo+hi)/2
         tj, ta, min_distance = acceleration(vp)
     tc = max(0., (distance-min_distance)/vp)

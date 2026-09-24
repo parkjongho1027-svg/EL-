@@ -17,14 +17,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
-      - name: Compile sources
-        run: python -m compileall -q src main.py
-      - name: Headless calculation tests
-        run: python -m pytest -q tests
-      - name: Legacy regression checks
-        run: for file in test_*.py; do python "$file"; done
-      - name: Built-in checks
-        run: python main.py --self-test
+      - name: Shared lint and calculation checks
+        run: sh scripts/verify.sh
   windows-build:
     runs-on: windows-latest
     needs: test
