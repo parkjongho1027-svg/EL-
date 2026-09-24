@@ -79,6 +79,22 @@ def test_rotor_inertia_changes_peak_torque_not_trajectory(inputs):
     assert any(abs(a[2]-b[2]) > 1 for a,b in zip(light['samples'],heavy['samples']))
 
 
+def test_rated_load_boundary_is_valid_and_overload_is_rejected(inputs):
+    at_rating = replace(inputs, load_kg=inputs.rated_load_kg)
+    assert estimate_motor_duty(at_rating)['run_time_s'] > 0
+    with pytest.raises(CalculationInputError, match='정격'):
+        replace(inputs, load_kg=math.nextafter(inputs.rated_load_kg, math.inf))
+
+
+def test_idle_time_reduces_rms_torque_without_changing_peak(inputs):
+    short = estimate_motor_duty(inputs)
+    long = estimate_motor_duty(replace(inputs, cycle_s=inputs.cycle_s * 4))
+    assert long['peak_torque_nm'] == pytest.approx(short['peak_torque_nm'])
+    assert long['thermal_rms_torque_nm'] == pytest.approx(
+        short['thermal_rms_torque_nm'] / 2, rel=1e-8)
+    assert long['duty_ed_pct'] == pytest.approx(short['duty_ed_pct'] / 4)
+
+
 def test_core_package_imports_without_tk():
     import ast
     from pathlib import Path

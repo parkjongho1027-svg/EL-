@@ -67,10 +67,15 @@ def calculate_traction_values(values: Mapping[str, object]) -> dict[str, object]
     ob = values["OB"] / 100
     wcw = values["Wc"] + values["Q"] * ob
     rope_total = values["H"] * values["wr"] * values["n"]
-    front = (values["Wc"] + values["Q"] + rope_total) / (wcw + values["Wcomp"])
-    rear = (wcw + rope_total) / (
-        values["Wc"] + values["Wcomp"] + values["Wm"] / 2
-    )
+    try:
+        front = (values["Wc"] + values["Q"] + rope_total) / (wcw + values["Wcomp"])
+        rear = (wcw + rope_total) / (
+            values["Wc"] + values["Wcomp"] + values["Wm"] / 2
+        )
+    except ZeroDivisionError:
+        raise CalculationInputError("트랙션 장력의 분모가 0입니다. 입력값의 크기를 확인하세요.") from None
+    if not all(math.isfinite(value) for value in (wcw, rope_total, front, rear)):
+        raise CalculationInputError("트랙션 계산 결과의 숫자 범위를 확인하세요.")
     final = max(front, rear)
     return {
         "ob": ob, "wcw": wcw, "rope_total": rope_total,
@@ -114,6 +119,9 @@ def calculate_brake_values(v: object=None, t: object=None, d: object=None,
         basis = "제동시간 t + 감속도 a"
         solved = {"v": a * t, "t": t, "d": a * t ** 2 / 2, "a": a}
 
+    if not all(math.isfinite(value) for value in solved.values()):
+        raise CalculationInputError("브레이크 계산 결과의 숫자 범위를 확인하세요.")
+
     differences = {}
     for key, entered in supplied.items():
         if entered is None:
@@ -140,9 +148,15 @@ def calculate_traffic_values(values: Mapping[str, object]) -> dict[str, object]:
         raise CalculationInputError("집중률과 탑승률은 0 초과 1 이하의 비율이어야 합니다.")
     if values["wait_factor"] > 1 or values["excluded_floors"] >= values["F"]:
         raise CalculationInputError("대기시간 환산율 또는 인구산정 제외층수를 확인하세요.")
+    if any(not values[key].is_integer() for key in ("F", "C", "n", "excluded_floors", "express_stops")):
+        raise CalculationInputError("층수·카 정원·정지층수는 정수로 입력하세요.")
+    if values["n"] + values["express_stops"] > values["F"]:
+        raise CalculationInputError("로컬 정지층수와 급행 정지수의 합은 총 층수보다 클 수 없습니다.")
     if values.get("population") is not None:
         values["population"] = _number(values["population"], "건물인구")
     values["floor_areas"] = [_number(area, "층별 유효면적") for area in (values.get("floor_areas") or [])]
+    if values["floor_areas"] and len(values["floor_areas"]) != int(values["F"] - values["excluded_floors"]):
+        raise CalculationInputError("층별 면적목록의 길이는 인구산정 대상 층수와 같아야 합니다.")
     if not values["floor_areas"] and not values["A"] and values.get("population") is None:
         raise CalculationInputError("층별 면적, 동일 면적 또는 건물인구가 필요합니다.")
     A = values["A"]
@@ -285,75 +299,6 @@ def traffic_visible_input_fields(building_use):
     return common | specific
 
 def run_calculation_self_tests():
-    """UI 변경과 무관하게 핵심 계산식이 유지되는지 빠르게 검증합니다."""
-    def close(actual, expected, tolerance=1e-9):
-        if not math.isclose(actual, expected, rel_tol=tolerance, abs_tol=tolerance):
-            raise AssertionError(f"자동검사 불일치: {actual} != {expected}")
-
-    motor = calculate_motor_value("P", {"Q": 1500, "V": 180, "OB": 0.45, "eff": 0.8})
-    close(motor, 30.330882352941178)
-    motor_values = {"P": motor, "Q": 1500, "V": 180, "OB": 0.45, "eff": 0.8}
-    for target in ("Q", "V", "OB", "eff"):
-        inputs = {key: value for key, value in motor_values.items() if key != target}
-        close(calculate_motor_value(target, inputs), motor_values[target])
-    traction = calculate_traction_values({
-        "Q": 1500, "Wc": 2400, "H": 50, "wr": 1.1, "n": 6,
-        "OB": 45, "Wcomp": 0, "Wm": 0,
-    })
-    close(traction["wcw"], 3075)
-    close(traction["rope_total"], 330)
-    close(traction["final"], 1.41875)
-    brake = calculate_brake_values(v=3, t=0.6)
-    close(brake["d"], 0.9)
-    close(brake["a"], 5)
-    for pair in ({"v": 3, "d": 0.9}, {"d": 0.9, "t": 0.6},
-                 {"v": 3, "a": 5}, {"d": 0.9, "a": 5}, {"t": 0.6, "a": 5}):
-        solved = calculate_brake_values(**pair)
-        close(solved["v"], 3)
-        close(solved["t"], 0.6)
-        close(solved["d"], 0.9)
-        close(solved["a"], 5)
-    traffic = calculate_traffic_values({
-        "A": 500, "F": 10, "S": 10, "excluded_floors": 2,
-        "phi": 0.15, "C": 15, "board_rate": 0.8, "n": 10,
-        "td": 4, "tp": 1, "Tr_travel": 60, "wait_factor": 0.5,
-    })
-    if traffic["recommended"] < 1 or len(traffic["comparison"]) < 3:
-        raise AssertionError("교통량 자동검사 불일치")
-    traffic_by_floor = calculate_traffic_values({
-        "A": 0, "F": 5, "S": 10, "excluded_floors": 1,
-        "floor_areas": [100, 200, 300, 400], "phi": 0.15,
-        "C": 15, "board_rate": 0.8, "n": 5, "td": 4, "tp": 1,
-        "Tr_travel": 60, "wait_factor": 0.4,
-    })
-    close(traffic_by_floor["total_area"], 1000)
-    close(traffic_by_floor["population"], 100)
-    textbook_example = calculate_traffic_values({
-        "A": 0, "F": 10, "S": 1, "excluded_floors": 2,
-        "population": 1000, "phi": 0.15, "C": 15, "board_rate": 0.8,
-        "n": 8, "td": 2.7, "tp": 2.5, "Tr_travel": 37,
-        "wait_factor": 0.5, "express_stops": 1,
-    })
-    close(textbook_example["local_stops"], 6.388662095966693)
-    close(textbook_example["expected_stops"], 7.388662095966693)
-    close(textbook_example["round_trip"], 91.94432642501748)
-    office_reference = traffic_pdf_reference("오피스-전용사옥", 10, 300, 2400)
-    if office_reference["demand_range"] != (20, 25) or office_reference["rough_count"] != 2:
-        raise AssertionError("PDF 교통량 참고표 자동검사 불일치")
-    use_field_tests = {
-        "호텔-중급": {"rooms", "guests_per_room"},
-        "공동주택": {"households", "persons_per_household"},
-        "병원": {"beds"},
-        "오피스-전용사옥": {"A", "excluded_floors", "floor_areas", "S"},
-        "사용자 설정": {"direct_population"},
-    }
-    special_fields = {
-        "A", "excluded_floors", "floor_areas", "S", "households",
-        "persons_per_household", "rooms", "guests_per_room", "beds",
-        "direct_population",
-    }
-    for building_use, expected in use_field_tests.items():
-        visible = traffic_visible_input_fields(building_use) & special_fields
-        if visible != expected:
-            raise AssertionError(f"{building_use} 용도별 입력칸 자동검사 불일치")
-    return True
+    """기존 import 경로: 별도의 자체 점검 모듈을 호출한다."""
+    from src.diagnostics.self_test import run_calculation_self_tests as run
+    return run()

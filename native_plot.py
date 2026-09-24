@@ -56,7 +56,7 @@ def _rgb(value):
     except ValueError:return (40,40,40)
 
 
-def render_png(profile,palette,reference=None,size=(1100,440)):
+def render_png(profile,palette,reference=None,size=(1100,440),axes=None):
     """축·보조선·곡선을 PNG 바이트로 반환한다. Pillow/Ghostscript 불필요."""
     w,h=size
     if w<360 or h<200:raise ValueError('그래프 크기는 360×200 이상이어야 합니다.')
@@ -99,7 +99,8 @@ def render_png(profile,palette,reference=None,size=(1100,440)):
         return ((samples[i],values[i]) for i in indices)
     profiles=(('REFERENCE',reference,_rgb('#4d9aff')),('CANDIDATE',profile,_rgb('#f3a450'))) if reference else (('CURVE',profile,_rgb(palette.get('accent','#2879cc'))),)
     duration=max(p['duration_s'] for _,p,_ in profiles)
-    ts=step(duration/4);tmax=math.ceil(duration/ts)*ts
+    ts=axes['x_step'] if axes else step(duration/4)
+    tmax=axes['x_max'] if axes else math.ceil(duration/ts)*ts
     left,right=85,w-22
     electrical=reference is not None or 'grid_kw_samples' in profile
     speed_bottom=round(h*.46)
@@ -115,11 +116,14 @@ def render_png(profile,palette,reference=None,size=(1100,440)):
         dy=step((hi-lo)/2)
         lo=0 if key=='speed' else math.floor((lo-dy*.05)/dy)*dy
         hi=math.ceil((hi+dy*.05)/dy)*dy
+        if axes:
+            lo,hi,dy=((0,axes['speed_max'],axes['speed_step']) if key=='speed' else
+                      (axes['power_min'],axes['power_max'],axes['power_step']))
         label(title,left,top-22)
-        tick_count=3 if bottom-top<100 else 5
+        tick_count=round((hi-lo)/dy)+1 if axes else (3 if bottom-top<100 else 5)
         for i in range(tick_count):
-            v=lo+(hi-lo)*i/(tick_count-1)
-            y=bottom-(bottom-top)*i/(tick_count-1)
+            v=lo+i*dy if axes else lo+(hi-lo)*i/(tick_count-1)
+            y=bottom-(bottom-top)*(v-lo)/(hi-lo)
             line((left,y),(right,y),grid)
             increment=(hi-lo)/(tick_count-1)
             num=f'{v:.2f}' if increment<.1 else f'{v:.1f}' if increment<1 else f'{v:g}'

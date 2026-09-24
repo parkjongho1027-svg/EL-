@@ -6,10 +6,10 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from app_config import APP_BUILD, FORMULA_VERSION
-from theme_manager import THEMES
+from src.config.themes import THEMES
 from utils import clean_number_text
 
-CALCULATOR_KEYS = ("motor", "traction", "brake", "traffic", "criteria", "scurve")
+CALCULATOR_KEYS = ("motor", "traction", "brake", "traffic", "criteria", "scurve", "motor_duty")
 
 MAX_HISTORY_PER_CALCULATOR = 500
 
@@ -58,6 +58,7 @@ class PersistentStore:
             # 영어를 선택한 뒤에는 그 선택을 다음 실행에도 유지합니다.
             "language": "ko",
             "projects": [],
+            "graphs": [],
             "traffic_presets": {},
             "calculators": {
                 key: {"previous": None, "history": []} for key in CALCULATOR_KEYS
@@ -91,6 +92,12 @@ class PersistentStore:
             projects = loaded.get("projects", [])
             if isinstance(projects, list):
                 self.data["projects"] = [item for item in projects if isinstance(item, dict)]
+            graphs = loaded.get("graphs", [])
+            if isinstance(graphs, list):
+                self.data["graphs"] = [item for item in graphs if
+                    isinstance(item, dict) and item.get("kind") in
+                    ("traction", "traffic", "mechanical", "electrical") and
+                    isinstance(item.get("state"), dict)][-MAX_HISTORY_PER_CALCULATOR:]
             presets = loaded.get("traffic_presets", {})
             if isinstance(presets, dict):
                 self.data["traffic_presets"] = {
@@ -152,6 +159,42 @@ class PersistentStore:
         return [(i, item.copy()) for i,item in enumerate(history)
                 if item.get("__simulation_mode__") in ("mechanical","electrical")
                 and (mode is None or item["__simulation_mode__"]==mode)]
+
+    def graph_history(self, kind=None):
+        return [(index, item.copy()) for index, item in enumerate(self.data.setdefault("graphs", []))
+                if kind is None or item["kind"] == kind]
+
+    def add_graph(self, kind, name, owner, state):
+        if kind not in ("traction", "traffic", "mechanical", "electrical"):
+            raise ValueError("알 수 없는 그래프 종류입니다.")
+        if not isinstance(state, dict) or not isinstance(name, str) or not name.strip():
+            raise ValueError("그래프 이름과 입력 상태를 확인하세요.")
+        if not isinstance(owner, str):
+            raise ValueError("담당자 이름을 확인하세요.")
+        record = {"kind": kind, "name": name.strip()[:100], "owner": owner.strip()[:100],
+                  "state": state, "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        self.data.setdefault("graphs", []).append(record)
+        del self.data["graphs"][:-MAX_HISTORY_PER_CALCULATOR]
+        self.save()
+        return record.copy()
+
+    def delete_graphs(self, indices):
+        saved = self.data.setdefault("graphs", [])
+        for index in sorted(set(indices), reverse=True):
+            if isinstance(index, int) and 0 <= index < len(saved):
+                del saved[index]
+        self.save()
+
+    def update_graph(self, index, *, name=None, owner=None):
+        graphs = self.data.setdefault("graphs", [])
+        if not isinstance(index, int) or not 0 <= index < len(graphs):
+            raise IndexError("그래프 기록을 찾지 못했습니다.")
+        for key, value in (("name", name), ("owner", owner)):
+            if value is not None:
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError("그래프명과 담당자 이름을 입력하세요.")
+                graphs[index][key] = value.strip()[:100]
+        self.save()
 
     def add_simulation(self, mode, state, summary):
         if mode not in ("mechanical","electrical"):

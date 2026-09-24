@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from .errors import CalculationInputError
-from .elevator_review_engine import scurve_profile
+from .trajectory import scurve_profile
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +25,19 @@ class EnergyTripInput:
     auxiliary_kw: float
     step: float
 
+    def __post_init__(self):
+        # Direct dataclass construction must enforce the same limits as validate().
+        positive = ('distance','vmax','amax','jerk','car_mass','counterweight_mass','drive_efficiency','step')
+        nonnegative = ('load_mass','equivalent_extra_mass','resistance','regen_efficiency','auxiliary_kw')
+        for name in positive:
+            object.__setattr__(self, name, _finite(name, getattr(self, name), positive=True))
+        for name in nonnegative:
+            object.__setattr__(self, name, _finite(name, getattr(self, name), nonnegative=True))
+        if self.direction not in ('상승','하강'):
+            raise CalculationInputError('운행 방향은 상승 또는 하강이어야 합니다.')
+        if self.drive_efficiency > 1 or self.regen_efficiency > 1:
+            raise CalculationInputError('효율은 0~1 사이여야 합니다.')
+
     @classmethod
     def validate(cls, **raw: object) -> 'EnergyTripInput':
         positive = ('distance','vmax','amax','jerk','car_mass','counterweight_mass','drive_efficiency','step')
@@ -32,14 +45,10 @@ class EnergyTripInput:
         missing = set((*positive,*nonnegative,'direction')) - raw.keys()
         if missing:
             raise CalculationInputError('시뮬레이션 입력 항목이 누락되었습니다: '+', '.join(sorted(missing)))
-        values = {key:_finite(key,raw[key],positive=True) for key in positive}
-        values.update({key:_finite(key,raw[key],nonnegative=True) for key in nonnegative})
-        direction = raw['direction']
-        if direction not in ('상승','하강'):
-            raise CalculationInputError('운행 방향은 상승 또는 하강이어야 합니다.')
-        if values['drive_efficiency'] > 1 or values['regen_efficiency'] > 1:
-            raise CalculationInputError('효율은 0~1 사이여야 합니다.')
-        return cls(**values,direction=direction)
+        unknown = raw.keys() - set((*positive,*nonnegative,'direction'))
+        if unknown:
+            raise CalculationInputError('알 수 없는 시뮬레이션 입력 항목: '+', '.join(sorted(unknown)))
+        return cls(**raw)
 
 
 def _finite(name, value, positive=False, nonnegative=False):
@@ -114,25 +123,28 @@ def compare_trips(shared, reference, candidate):
 def read_measurement(path, predicted):
     """헤더 time_s,speed_m_s,grid_kw. 음수 grid_kw는 실측 계통 회수."""
     path=Path(path)
-    if not path.is_file():
-        raise ValueError(f'실측 파일을 찾을 수 없습니다: {path}')
-    if path.stat().st_size > 5_000_000:
-        raise ValueError('실측 CSV는 5 MB 이하여야 합니다.')
-    with path.open('r',encoding='utf-8-sig',newline='') as stream:
-        reader=csv.DictReader(stream)
-        if not reader.fieldnames or not {'time_s','speed_m_s','grid_kw'} <= set(reader.fieldnames):
-            raise ValueError('CSV 헤더는 time_s,speed_m_s,grid_kw가 필요합니다.')
-        rows=[]
-        for row in reader:
-            if len(rows)>=100000:
-                raise ValueError('실측 데이터는 10만 행 이하여야 합니다.')
-            try:
-                t,v,p=(float(row[key]) for key in ('time_s','speed_m_s','grid_kw'))
-            except (TypeError,ValueError):
-                raise ValueError('실측 CSV에 숫자가 아닌 값이 있습니다.') from None
-            if not all(math.isfinite(x) for x in (t,v,p)) or t<0 or v<0 or (rows and t<=rows[-1][0]):
-                raise ValueError('실측 시간은 0 이상 증가, 속도는 0 이상, 전력은 유한한 값이어야 합니다.')
-            rows.append((t,v,p))
+    try:
+        if not path.is_file():
+            raise CalculationInputError(f'실측 파일을 찾을 수 없습니다: {path}')
+        if path.stat().st_size > 5_000_000:
+            raise CalculationInputError('실측 CSV는 5 MB 이하여야 합니다.')
+        with path.open('r',encoding='utf-8-sig',newline='') as stream:
+            reader=csv.DictReader(stream)
+            if not reader.fieldnames or not {'time_s','speed_m_s','grid_kw'} <= set(reader.fieldnames):
+                raise CalculationInputError('CSV 헤더는 time_s,speed_m_s,grid_kw가 필요합니다.')
+            rows=[]
+            for row in reader:
+                if len(rows)>=100000:
+                    raise CalculationInputError('실측 데이터는 10만 행 이하여야 합니다.')
+                try:
+                    t,v,p=(float(row[key]) for key in ('time_s','speed_m_s','grid_kw'))
+                except (KeyError,TypeError,ValueError):
+                    raise CalculationInputError('실측 CSV에 누락되거나 숫자가 아닌 값이 있습니다.') from None
+                if not all(math.isfinite(x) for x in (t,v,p)) or t<0 or v<0 or (rows and t<=rows[-1][0]):
+                    raise CalculationInputError('실측 시간은 0 이상 증가, 속도는 0 이상, 전력은 유한한 값이어야 합니다.')
+                rows.append((t,v,p))
+    except (OSError,UnicodeError,csv.Error) as error:
+        raise CalculationInputError(f'실측 CSV를 읽을 수 없습니다: {error}') from error
     if len(rows)<2 or rows[0][0]>0.2 or abs(rows[-1][0]-predicted['duration_s'])>max(0.5,predicted['duration_s']*0.05):
         raise ValueError('실측 CSV는 운행 시작부터 종료까지 포함해야 하며 예측 운행시간과 5% 또는 0.5초 이내로 맞아야 합니다.')
     energy=sum((b[0]-a[0])*(a[2]+b[2])/2/3600 for a,b in zip(rows,rows[1:]))

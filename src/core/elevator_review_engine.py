@@ -1,4 +1,5 @@
 import math
+from .trajectory import scurve_profile  # 기존 import 경로 호환
 
 # 검토 범위: 개별 KC 조항의 입력값 검사. 전체 승강기의 합격증명이 아니다.
 KC_SOURCE = 'KC 2050-51:2022 (행정안전부 고시 별표 22)'
@@ -83,6 +84,8 @@ def compare_criterion(value, limit, comparison='MIN', warning_margin=None):
         passed = value <= limit
     else:
         raise ValueError('비교 유형은 MIN 또는 MAX여야 합니다.')
+    if not math.isfinite(margin):
+        raise ValueError('기준 대비 여유율의 숫자 범위를 확인하세요.')
     engineering = '기준 미달' if not passed else ('한계 근접' if warning_margin is not None and margin <= warning_margin else '기준 충족')
     return {'status': 'COMPLIANT' if passed else 'NONCOMPLIANT', 'margin_pct': margin,
             'engineering': engineering,
@@ -148,80 +151,6 @@ def evaluate_brake_evidence(test_125=None, two_sets=None, single_failure=None, d
     return {'status': 'INDETERMINATE', 'reported': '입력상 모든 항목 충족', 'reason': '체크 표시만으로 시험기록과 실제 구성을 확인할 수 없습니다. 원본 시험기록을 대조해야 합니다.', 'clause': '13.2.2.2.1'}
 
 
-def scurve_profile(distance, vmax, amax, jerk, moving_mass, imbalance_force=0, step=0.05):
-    """대칭 7구간 저크 제한 궤적과 부호가 있는 단순화 기계동력."""
-    from .errors import CalculationInputError, SimulationLimitError
-    try:
-        valid = (all(not isinstance(x,bool) and math.isfinite(x) and x > 0
-                     for x in (distance,vmax,amax,jerk,moving_mass,step))
-                 and not isinstance(imbalance_force,bool) and math.isfinite(imbalance_force))
-    except (TypeError,ValueError,OverflowError):
-        valid = False
-    if not valid:
-        raise CalculationInputError('거리·속도·가속도·저크·질량·시간간격은 유한한 양수여야 합니다.')
-    def acceleration(v):
-        tj = min(amax / jerk, math.sqrt(v / jerk))
-        ta = max(0., v / (jerk*tj) - tj)
-        return tj, ta, v*(2*tj+ta)
-    tj, ta, min_distance = acceleration(vmax)
-    vp = vmax
-    if min_distance > distance:
-        lo, hi = 0., vmax
-        for _ in range(70):
-            mid = (lo+hi)/2
-            if acceleration(mid)[2] > distance:
-                hi = mid
-            else:
-                lo = mid
-        vp = (lo+hi)/2
-        tj, ta, min_distance = acceleration(vp)
-    tc = max(0., (distance-min_distance)/vp)
-    duration_estimate = 2*(2*tj+ta)+tc
-    if not math.isfinite(duration_estimate) or duration_estimate/step > 20000:
-        raise SimulationLimitError('시뮬레이션은 최대 20,000개 시간 샘플까지 지원합니다. 거리·속도·시간 간격을 확인하세요.')
-    phases = ((jerk,tj),(0.,ta),(-jerk,tj),(0.,tc),(-jerk,tj),(0.,ta),(jerk,tj))
-    t=x=v=a=0.
-    samples=[(0.,0.,0.,0.,0.)]
-    signed_kw=[0.]
-    motoring_wh=braking_wh=0.
-
-    def positive_area(p0, p1, dt):
-        """부호 변경 시 0 교차점을 나눠 양의 구간만 적분한다. kW·s 반환."""
-        if p0 >= 0 and p1 >= 0:
-            return (p0 + p1)*dt/2
-        if p0 <= 0 and p1 <= 0:
-            return 0.
-        if p0 > 0:
-            return p0*dt*(p0/(p0-p1))/2
-        return p1*dt*(p1/(p1-p0))/2
-
-    for j,duration in phases:
-        remaining=duration
-        while remaining > 1e-12:
-            if len(samples) >= 20010:
-                raise SimulationLimitError('시뮬레이션은 최대 20,000개 시간 샘플까지 지원합니다. 입력값을 확인하세요.')
-            dt=min(step,remaining)
-            x += v*dt + a*dt*dt/2 + j*dt**3/6
-            v += a*dt + j*dt*dt/2
-            a += j*dt
-            t += dt
-            power_kw=(moving_mass*a+imbalance_force)*v/1000
-            if not all(math.isfinite(number) for number in (t,x,v,a,power_kw)):
-                raise ValueError('운행 계산값이 너무 큽니다. 입력값을 확인하세요.')
-            motoring_wh += positive_area(signed_kw[-1],power_kw,dt)*1000/3600
-            braking_wh += positive_area(-signed_kw[-1],-power_kw,dt)*1000/3600
-            signed_kw.append(power_kw)
-            samples.append((t,x,max(0.,v),a,abs(power_kw)))
-            remaining -= dt
-    return {'duration_s':t,'peak_speed_m_s':vp,'cruise_s':tc,'samples':samples,
-            'peak_mechanical_kw':max(row[4] for row in samples),
-            'signed_mechanical_kw_samples':signed_kw,
-            'peak_motoring_kw':max(signed_kw), 'peak_braking_kw':min(signed_kw),
-            'motoring_mechanical_wh':motoring_wh,
-            'braking_mechanical_wh':braking_wh}
-
-
-
 def evaluate_traction_case(case, t1, t2, friction, wrap_rad):
     """부속서 IX의 세 조건을 별개 방향으로 비교한다. 모든 힘/마찰은 별도 산정해야 한다."""
     if None in (t1,t2,friction,wrap_rad):
@@ -235,6 +164,8 @@ def evaluate_traction_case(case, t1, t2, friction, wrap_rad):
         limit=math.exp(friction*wrap_rad)
     except OverflowError:
         raise ValueError('마찰계수와 감긴각의 곱이 너무 큽니다.') from None
+    if not math.isfinite(limit):
+        raise ValueError('마찰계수와 감긴각의 곱이 너무 큽니다.')
     if not math.isfinite(ratio):
         raise ValueError('장력비의 숫자 범위를 확인하세요.')
     if case=='stationary':
@@ -245,6 +176,8 @@ def evaluate_traction_case(case, t1, t2, friction, wrap_rad):
         margin=(limit-ratio)/limit*100
         satisfied=ratio<=limit
         sign='≤'
+    if not math.isfinite(margin):
+        raise ValueError('권상 조건식 여유율의 숫자 범위를 확인하세요.')
     return {'status':'조건식 충족' if satisfied else '조건식 미충족',
             'legal_status':'INDETERMINATE', 'ratio':ratio,'limit':limit,
             'margin_pct':margin,'comparison':sign,

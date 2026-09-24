@@ -20,6 +20,7 @@ class Motor:
   self.entries={k:E(v) for k,v in {'P':'','Q':'1000','V':'1.5','OB':'40','eff':'80'}.items()}
   self.unit_vars={'V':V()};self.formulas={'P':lambda values:calculate_motor_value('P',values)}
   self.input_validator=None;self.result_validator=None;self.result=''
+  self.services=SimpleNamespace(push_undo_state=lambda _panel:None,widget_language=lambda _panel:'ko',english_ui={})
   self.root=SimpleNamespace(_language='ko',_elevator_app=SimpleNamespace(
       criteria_panel=SimpleNamespace(entries={'selected_motor':E('10')})))
  def winfo_toplevel(self):return self.root

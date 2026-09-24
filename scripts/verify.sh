@@ -10,8 +10,9 @@ if [ "${1:-}" = '--staged' ]; then
 fi
 
 "$PYTHON_BIN" -m ruff check --select E4,E7,E9,F821,F822,F823 src/core src/ui tests
+"$PYTHON_BIN" -m ruff check --select F821,F822,F823 main.py storage.py theme_manager.py src/config src/diagnostics
 "$PYTHON_BIN" -m compileall -q src main.py
-"$PYTHON_BIN" -m pytest -q tests
+"$PYTHON_BIN" -m pytest -q tests --cov=src.core --cov-branch --cov-report=term --cov-fail-under=90
 for test_file in test_*.py; do
     "$PYTHON_BIN" "$test_file" >/dev/null
 done

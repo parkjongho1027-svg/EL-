@@ -14,6 +14,26 @@ def test_rope_endpoints_by_hand():
     assert values[-1][2] == pytest.approx((1250+150)*g/5)
 
 
+def test_rope_count_scales_suspended_load_but_not_rope_weight_per_strand():
+    few = tension_by_height(1000, 500, .5, 30, 1, 5, points=2)
+    many = tension_by_height(1000, 500, .5, 30, 1, 10, points=2)
+    g = 9.80665
+    assert few[0][1] == pytest.approx((1500 / 5 + 30) * g)
+    assert many[0][1] == pytest.approx((1500 / 10 + 30) * g)
+    assert few[0][1] - many[0][1] == pytest.approx(150 * g)
+
+
+@pytest.mark.parametrize('points', [1, True, 1002])
+def test_rope_sample_count_rejects_invalid_values(points):
+    with pytest.raises(CalculationInputError):
+        tension_by_height(1000, 500, .5, 30, 1, 5, points=points)
+
+
+def test_rope_extreme_mass_does_not_return_infinity():
+    with pytest.raises(CalculationInputError, match='숫자 범위'):
+        tension_by_height(1e308, 1e308, .5, 1e308, 1e308, 5)
+
+
 def test_five_minute_seed_and_car_count():
     one = simulate_five_minutes(10,1,10,.8,60,4,1,seed=42)
     two = simulate_five_minutes(10,2,10,.8,60,4,1,seed=42)

@@ -5,11 +5,28 @@
 """
 from dataclasses import dataclass, fields
 import math
+from typing import TypedDict
 
 from .errors import CalculationInputError
-from .elevator_review_engine import scurve_profile
+from .trajectory import scurve_profile
 
 G = 9.80665
+
+
+class MotorDutyResult(TypedDict):
+    run_time_s: float
+    cycle_s: float
+    duty_ed_pct: float
+    axis_rad_per_m: float
+    reflected_inertia_kg_m2: float
+    peak_torque_nm: float
+    peak_motor_rad_s: float
+    peak_input_kw: float
+    thermal_rms_torque_nm: float
+    resistor_peak_kw: float
+    resistor_cycle_kj: float
+    resistor_average_kw: float
+    samples: tuple[tuple[float, float, float, float], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +51,7 @@ class MotorDutyInput:
     direction: str = '상승'
     step_s: float = 0.05
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         positive = {'distance_m', 'speed_m_s', 'accel_m_s2', 'jerk_m_s3',
                     'car_kg', 'rated_load_kg', 'counterweight_kg', 'sheave_radius_m',
                     'gear_ratio', 'roping_ratio', 'efficiency', 'cycle_s', 'step_s'}
@@ -59,7 +76,7 @@ class MotorDutyInput:
             raise CalculationInputError('효율과 회생 비율은 0~1 사이여야 합니다.')
 
 
-def estimate_motor_duty(inputs: MotorDutyInput) -> dict:
+def estimate_motor_duty(inputs: MotorDutyInput) -> MotorDutyResult:
     """동일한 S-Curve 궤적으로 축 토크, 열부하 및 저항기 전력을 추정한다.
 
     토크 RMS는 비운행 시간을 토크 0으로 취급한다. 정지 유지·문 구동 발열은 제외.
