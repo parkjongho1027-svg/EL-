@@ -2994,7 +2994,9 @@ class CriteriaPanel(tk.Frame):
         self.grid_rowconfigure(0,weight=1)
         self.grid_columnconfigure(0,weight=1,uniform='criteria_split')
         self.grid_columnconfigure(1,weight=1,uniform='criteria_split')
-        holder=tk.Frame(self,bg='white');holder.grid(row=0,column=0,sticky='nsew')
+        holder=tk.LabelFrame(self,text=f' {KC_SOURCE.partition(" (")[0]} · 개별 조항 검토 ',
+                             font=('맑은 고딕',11,'bold'),bg='white',padx=6,pady=6)
+        holder.grid(row=0,column=0,sticky='nsew',padx=(0,7),pady=(3,6))
         canvas=tk.Canvas(holder,bg='white',highlightthickness=0)
         bar=ttk.Scrollbar(holder,orient='vertical',command=canvas.yview)
         canvas.configure(yscrollcommand=bar.set)
@@ -3004,7 +3006,6 @@ class CriteriaPanel(tk.Frame):
         frame.bind('<Configure>',lambda _e:canvas.configure(scrollregion=canvas.bbox('all')))
         canvas.bind('<MouseWheel>',lambda e:canvas.yview_scroll(-1 if e.delta>0 else 1,'units'))
 
-        tk.Label(frame,text='KC 2050-51:2022 개별 조항 검토',font=('맑은 고딕',11,'bold'),bg='white').pack(anchor='w')
         self.drive=tk.StringVar(value='권상식')
         drive_combo=ttk.Combobox(frame,textvariable=self.drive,values=('권상식','기타'),state='readonly',width=18)
         drive_combo.pack(anchor='w')
@@ -3239,10 +3240,7 @@ class SCurvePanel(tk.Frame):
             tk.Label(row,text=label,width=27,anchor='w',bg='white').pack(side='left')
             entry=tk.Entry(row,width=40);entry.pack(side='left');self.measurement_paths[key]=entry
             tk.Button(row,text='찾기',command=lambda e=entry:self._choose_measurement(e)).pack(side='left')
-        fields=list(self.energy_entries.values())+list(self.measurement_paths.values())
-        for entry in fields:
-            entry.bind('<Tab>',lambda event:self._energy_focus(event,fields,1))
-            entry.bind('<Shift-Tab>',lambda event:self._energy_focus(event,fields,-1))
+        # Tab 이동은 ElevatorApp에서 다른 다섯 탭과 같은 순서로 연결한다.
         tk.Button(host,text='시뮬레이션 실행',command=lambda:self.calculate_energy(record=True)).pack(anchor='w',padx=10,pady=4)
         self.energy_plot=tk.Canvas(host,height=235,highlightthickness=0);self.energy_plot.pack(fill='x',padx=10)
         self.energy_plot.bind('<Configure>',lambda _event:self._queue_plot_redraw('electrical'))
@@ -3348,9 +3346,6 @@ class SCurvePanel(tk.Frame):
         else:
             messagebox.showinfo('PNG 저장',f'그래프를 저장했습니다.\n{path}',parent=self)
 
-    def _energy_focus(self,event,fields,direction):
-        focus_input_for_replacement(fields[(fields.index(event.widget)+direction)%len(fields)])
-        return 'break'
     def _choose_measurement(self,entry):
         path=filedialog.askopenfilename(parent=self,title='실측 운행 CSV 선택',filetypes=[('CSV','*.csv')])
         if path:entry.delete(0,tk.END);entry.insert(0,path)
@@ -3606,6 +3601,7 @@ class ElevatorApp:
         # '프로그램이 마지막으로 자동 입력한 값'을 항목별로 따로 기억합니다.
         self._auto_filled_values = {}
         self._last_tab_index = 0
+        self._tab_after_enter = None
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
         self.root.bind_all("<Control-Return>", self._shortcut_calculate)
@@ -3627,13 +3623,24 @@ class ElevatorApp:
             entries = list(panel.entries.items())
             if panel is self.criteria_panel:
                 entries += list(panel.traction_entries.items())
+            if panel is self.scurve_panel:
+                entries += list(panel.energy_entries.items())
+                entries += list(panel.measurement_paths.items())
             for key, entry in entries:
                 # 메모칸에는 공백을 입력할 수 있게 유지하고, 모든 입력칸에 Tab 이동을 연결합니다.
-                if not (panel is self.traffic_panel and key == "criterion_source"):
+                if not ((panel is self.traffic_panel and key == "criterion_source") or
+                        (panel is self.scurve_panel and entry in panel.measurement_paths.values())):
                     entry.bind("<space>", self._shortcut_next_tab, add="+")
                 entry.bind("<Tab>", lambda e, p=panel: self._focus_adjacent_input(p, e.widget, 1), add="+")
                 entry.bind("<Shift-Tab>", lambda e, p=panel: self._focus_adjacent_input(p, e.widget, -1), add="+")
                 entry.bind("<ISO_Left_Tab>", lambda e, p=panel: self._focus_adjacent_input(p, e.widget, -1), add="+")
+                entry.bind("<KeyRelease-Return>",
+                           lambda e,p=panel:self._mark_calculated_input(p,e.widget),add="+")
+                entry.bind("<KeyPress>",self._clear_calculated_on_edit,add="+")
+            for result in (getattr(panel,'result_text',None),
+                           getattr(panel,'energy_result',None)):
+                if result is not None:
+                    result.bind("<Tab>",lambda _event:self._move_to_next_tab(),add="+")
         self.root.bind_all("<F1>", self.show_shortcut_help)
         self.root.bind("<Configure>", self._on_root_configure, add="+")
         self.root.protocol("WM_DELETE_WINDOW", self.confirm_exit)
@@ -4419,6 +4426,7 @@ class ElevatorApp:
 
     def on_tab_changed(self, _event=None):
         """탭 이동 시 의미와 단위가 같은 공통값만 다음 계산창으로 전달합니다."""
+        self._tab_after_enter = None
         try:
             new_index = self.notebook.index(self.notebook.select())
             common = self._collect_live_common_values(self._last_tab_index)
@@ -4481,39 +4489,61 @@ class ElevatorApp:
                 return None
             if isinstance(focus, tk.Entry):
                 # 교통량의 메모 입력칸은 실제 문장에 공백이 필요합니다.
-                if focus is self.traffic_panel.entries.get("criterion_source"):
+                if (focus is self.traffic_panel.entries.get("criterion_source") or
+                        focus in self.scurve_panel.measurement_paths.values()):
                     return None
+        return self._move_to_next_tab()
+
+    def _mark_calculated_input(self,panel,entry):
+        """Enter 계산 직후 Tab은 입력칸 하나가 아니라 다음 계산 창으로 이동한다."""
+        self._tab_after_enter=(panel,entry)
+
+    def _clear_calculated_on_edit(self,event):
+        if event.keysym not in ('Return','Tab','ISO_Left_Tab','Shift_L','Shift_R',
+                                'Control_L','Control_R','Alt_L','Alt_R'):
+            self._tab_after_enter=None
+
+    def _move_to_next_tab(self,direction=1):
+        self._tab_after_enter=None
         try:
-            current = self.notebook.index(self.notebook.select())
-            next_index = (current + 1) % self.notebook.index("end")
+            current=self.notebook.index(self.notebook.select())
+            next_index=(current+direction)%self.notebook.index('end')
             self.notebook.select(next_index)
-            panels = self.panels + [self.criteria_panel, self.scurve_panel]
-            self.root.after_idle(lambda i=next_index: self._focus_first_input(panels[i]))
-        except (tk.TclError, IndexError):
+            panels=self.panels+[self.criteria_panel,self.scurve_panel]
+            self.root.after_idle(lambda i=next_index,back=direction<0:
+                                 self._focus_first_input(panels[i],last=back))
+        except (tk.TclError,IndexError):
             return None
-        return "break"
+        return 'break'
 
-    def _focus_first_input(self, panel):
-        """탭 이동 직후 첫 번째 사용 가능한 입력칸에 커서를 놓습니다."""
-        for entry in getattr(panel, "entries", {}).values():
-            try:
-                if str(entry.cget("state")) != "disabled" and entry.winfo_viewable():
-                    focus_input_for_replacement(entry)
-                    return
-            except (tk.TclError, AttributeError):
-                continue
-
-    def _focus_adjacent_input(self, panel, current, direction=1):
+    def _visible_inputs(self, panel):
+        """현재 보이는 입력칸만 순서대로 돌려준다."""
+        if panel is getattr(self, 'scurve_panel', None) and panel.mode_tabs.index(panel.mode_tabs.select()) == 1:
+            candidates = [*panel.energy_entries.values(), *panel.measurement_paths.values()]
+        else:
+            candidates = list(getattr(panel, "entries", {}).values())
+            if panel is self.criteria_panel:
+                candidates += list(panel.traction_entries.values())
         entries = []
-        candidates = list(getattr(panel, "entries", {}).values())
-        if panel is self.criteria_panel:
-            candidates += list(panel.traction_entries.values())
         for entry in candidates:
             try:
                 if str(entry.cget("state")) != "disabled" and entry.winfo_viewable():
                     entries.append(entry)
             except (tk.TclError, AttributeError):
-                pass
+                continue
+        return entries
+
+    def _focus_first_input(self, panel, last=False):
+        """탭 이동 직후 첫 번째(역방향은 마지막) 입력값을 전체 선택한다."""
+        entries = self._visible_inputs(panel)
+        if entries:
+            focus_input_for_replacement(entries[-1 if last else 0])
+
+    def _focus_adjacent_input(self, panel, current, direction=1):
+        if self._tab_after_enter == (panel,current) and direction>0:
+            return self._move_to_next_tab()
+        self._tab_after_enter=None
+        entries = self._visible_inputs(panel)
         if not entries:
             return "break"
         try:
@@ -4525,12 +4555,18 @@ class ElevatorApp:
             target = entries[target_index]
             focus_input_for_replacement(target)
         else:
+            if panel is getattr(self, 'scurve_panel', None):
+                subtab = panel.mode_tabs.index(panel.mode_tabs.select())
+                if direction > 0 and subtab == 0:
+                    panel.mode_tabs.select(1)
+                    self.root.after_idle(lambda:self._focus_first_input(panel))
+                    return "break"
+                if direction < 0 and subtab == 1:
+                    panel.mode_tabs.select(0)
+                    self.root.after_idle(lambda:self._focus_first_input(panel,last=True))
+                    return "break"
             # 마지막 입력칸에서 Tab을 누르면 다음 계산창으로 넘어가고 첫 입력칸에 즉시 포커스합니다.
-            current_tab = self.notebook.index(self.notebook.select())
-            next_tab = (current_tab + (1 if direction > 0 else -1)) % self.notebook.index("end")
-            self.notebook.select(next_tab)
-            panels = self.panels + [self.criteria_panel, self.scurve_panel]
-            self.root.after_idle(lambda i=next_tab: self._focus_first_input(panels[i]))
+            return self._move_to_next_tab(direction)
         return "break"
 
     def _shortcut_theme(self, _event=None):
