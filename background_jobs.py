@@ -1,6 +1,6 @@
 """Tk 객체에 접근하지 않는 실시간 시뮬레이션 작업."""
-from energy_model import compare_trips, read_measurement
-from elevator_review_engine import scurve_profile
+from src.core.energy_model import compare_trips, read_measurement
+from src.core.elevator_review_engine import scurve_profile
 
 
 def calculate_snapshot(mode, snapshot):

@@ -47,13 +47,15 @@ from storage import (PersistentStore, get_data_file_path, normalize_record,
                      CALCULATOR_KEYS, MAX_HISTORY_PER_CALCULATOR)
 from utils import (clean_number_text, parse_number, ensure_positive,
                    calculate_safely, require_calculation)
-from calculators import (
+from src.core.calculators import (
     calculate_motor_value, calculate_traction_values, calculate_brake_values,
     calculate_traffic_values, traffic_pdf_reference, traffic_visible_input_fields,
     run_calculation_self_tests,
 )
 from simulation_plot import draw_scurve_plot, draw_energy_comparison
-from energy_model import compare_trips, read_measurement
+from src.core.energy_model import compare_trips, read_measurement
+from src.ui.motor_duty_dialog import open_motor_duty_dialog
+from src.ui.engineering_charts import show_tension, show_capacity
 from background_jobs import calculate_snapshot
 
 
@@ -1179,15 +1181,20 @@ class SolverPanel(tk.Frame):
             sync()
 
     def capture_state(self):
-        return {
+        state = {
             "target": self._target_key(),
             "values": {key: entry.get() for key, entry in self.entries.items()},
             "units": {key: var.get() for key, var in self.unit_vars.items()},
         }
+        if self.storage_key == 'motor':
+            state['advanced_inputs'] = getattr(self, 'advanced_inputs', {}).copy()
+        return state
 
     def apply_state(self, state, remember_undo=True):
         if remember_undo:
             push_undo_state(self)
+        if self.storage_key == 'motor':
+            self.advanced_inputs = state.get('advanced_inputs', {}).copy()
         for key, unit in state.get("units", {}).items():
             if key in self.unit_vars:
                 self.unit_vars[key].set(unit)
@@ -1258,6 +1265,8 @@ def build_motor_tab(notebook, store):
         notebook, vars_spec, formulas, note, store, "motor",
         validate_motor_values, validate_motor_result, formula_key="motor"
     )
+    tk.Button(panel.input_area, text='관성·가속 토크 / 열부하',
+              command=lambda: open_motor_duty_dialog(panel)).pack(anchor='w', padx=12, pady=5)
     notebook.add(panel, text="전동기 용량")
     return panel
 
@@ -1337,6 +1346,9 @@ class IntegratedTractionPanel(tk.Frame):
 
         self.result_text = create_result_display(right)
         self._show(initial_result_text(self))
+
+        tk.Button(left, text='로프 장력 분포 그래프',
+                  command=lambda: show_tension(self)).pack(anchor='w', padx=9, pady=3)
 
     def _show(self, text, error=False):
         set_result_display(self.result_text, text, error)
@@ -1893,6 +1905,9 @@ class TrafficPanel(tk.Frame):
         if self.input_history:
             self.history_button.config(state="normal")
 
+        tk.Button(left, text='층별 5분 수송 그래프',
+                  command=lambda: show_capacity(self)).pack(side='bottom',anchor='w',padx=9,pady=2)
+
         scroll_host = tk.Frame(left, bg="white")
         scroll_host.pack(fill="both", expand=True, padx=5)
         canvas = tk.Canvas(scroll_host, highlightthickness=0, height=400)
@@ -2366,6 +2381,11 @@ class TrafficPanel(tk.Frame):
                 raise ValueError("계산 결과의 숫자 범위가 너무 큽니다. 입력값을 확인하세요.")
 
             N = calculated["recommended"]
+            self.last_capacity_inputs = {
+                'floors': int(F), 'cars': int(current_cars or N),
+                'seats': int(C), 'board_rate': board_rate,
+                'travel_s': Tr_travel, 'door_s': td, 'passenger_s': tp,
+            }
             AIT = calculated["interval"]
             AWT = calculated["wait"]
             reference = traffic_pdf_reference(
@@ -2977,7 +2997,7 @@ class ProjectManager:
 # ===================================================================
 # 메인 앱
 # ===================================================================
-from elevator_review_engine import (KC_SOURCE, KC_URL, INTERNAL_NOTICE, compare_criterion,
+from src.core.elevator_review_engine import (KC_SOURCE, KC_URL, INTERNAL_NOTICE, compare_criterion,
     evaluate_rope_clause, evaluate_actual_speed, evaluate_brake_evidence,
     evaluate_traction_case, evaluate_motor_capacity, scurve_profile, review_guidance)
 
