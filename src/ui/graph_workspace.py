@@ -12,7 +12,7 @@ from src.core.errors import CalculationInputError
 from src.ui.chart_png import export_chart_png
 from src.ui.graph_axes import axes_for_graphs
 from src.ui.record_manager import open_record_manager
-from src.ui.native_plot import render_png
+from src.ui.native_plot import render_png, stack_pngs
 from src.ui.theme_manager import apply_theme, get_theme
 from src.ui.ui_components import SkyButton, WindowManager, app_ask_string, messagebox
 from src.common.utils import parse_number
@@ -29,6 +29,11 @@ NOTICES = {
     "mechanical": "단순화 운행 모델의 예상 기계동력. 실측 전기에너지가 아닙니다.",
     "electrical": "동일 운행 조건의 모델 추정치. 실측 없이 절감 성능을 검증할 수 없습니다.",
 }
+
+COMPARISON_COLORS = (
+    "#2475d0", "#e36b28", "#19865c", "#a74abb", "#b18b16", "#c44555",
+    "#087e96", "#7056ac", "#a05a20", "#d04094", "#4c8231", "#655cba",
+)
 
 
 def graph_data(kind, state):
@@ -174,14 +179,14 @@ def _draw_capacity(canvas, result, axes):
     canvas.create_text(x1, y1 + 34, text="목적층", anchor="e", fill=ink)
 
 
-def _draw_simulation(canvas, kind, data, axes):
+def _draw_simulation(canvas, kind, data, axes, profiles_override=None):
     canvas.delete("all")
     palette = get_theme(canvas)[1]
     canvas.configure(bg=palette["surface"])
     ink, grid = palette["text"], palette["border"]
     w, h = max(500, canvas.winfo_width()), max(280, canvas.winfo_height())
     left, right = 85, w - 25
-    profiles = (
+    profiles = profiles_override or (
         ((data, palette["accent"]),)
         if kind == "mechanical"
         else ((data["reference"], "#2879cc"), (data["candidate"], "#d37a28"))
@@ -243,7 +248,7 @@ def _draw_simulation(canvas, kind, data, axes):
             if len(coords) >= 4:
                 canvas.create_line(*coords, fill=color, width=2)
     canvas.create_text(right, h - 9, text="시간 (s)", anchor="e", fill=ink)
-    if kind == "electrical":
+    if kind == "electrical" and profiles_override is None:
         canvas.create_text(
             left, 17, text="기준(파랑) / 후보(주황)", anchor="w", fill=ink
         )
@@ -549,6 +554,130 @@ def close_graphs(panel, kind):
             graph.window.destroy()
 
 
+class ComparisonWindow:
+    """One window for saved simulations: overlay motion or stack energy charts."""
+
+    def __init__(self, panel, kind, prepared, axes):
+        self.panel, self.kind = panel, kind
+        self.source = None
+        self.prepared, self.axes = prepared, axes
+        self.window = tk.Toplevel(panel)
+        self.window._ui_theme = getattr(panel.winfo_toplevel(), "_ui_theme", "light")
+        self.window.title(f"{TITLES[kind]} 비교 — {len(prepared)}개")
+        self.window.geometry("1000x720")
+        self.window.minsize(650, 440)
+        self.window.transient(panel.winfo_toplevel())
+        self._pinned = False
+        self.status = tk.Label(self.window, text=NOTICES[kind], anchor="w")
+        self.status.pack(fill="x", padx=12, pady=6)
+        controls = tk.Frame(self.window)
+        controls.pack(side="bottom", fill="x", padx=10, pady=8)
+        self.pin_button = SkyButton(controls, text="창 고정", command=self.toggle_pin)
+        self.pin_button.pack(side="left", padx=2)
+        SkyButton(controls, text="비교 PNG 저장", command=self.save_png).pack(side="left", padx=2)
+        if kind == "mechanical":
+            legend = tk.Frame(self.window)
+            legend.pack(fill="x", padx=12, pady=3)
+            for index, (record, _data) in enumerate(prepared):
+                color = COMPARISON_COLORS[index % len(COMPARISON_COLORS)]
+                name = str(record.get("name") or "이름 없음")
+                if len(name) > 22:
+                    name = name[:21] + "…"
+                tk.Label(legend, text=f"{index + 1}. ● {name}", width=28,
+                         anchor="w", fg=color).grid(row=index // 3, column=index % 3,
+                                                     sticky="w", padx=(0, 8))
+            self.canvas = tk.Canvas(self.window, highlightthickness=0)
+            self.canvas.pack(fill="both", expand=True, padx=12, pady=4)
+            self.canvas.bind("<Configure>", self.redraw)
+        else:
+            self.scroll = tk.Canvas(self.window, highlightthickness=0)
+            scrollbar = ttk.Scrollbar(self.window, orient="vertical", command=self.scroll.yview)
+            self.scroll.configure(yscrollcommand=scrollbar.set)
+            scrollbar.pack(side="right", fill="y")
+            self.scroll.pack(fill="both", expand=True, padx=(12, 0), pady=4)
+            self.content = tk.Frame(self.scroll)
+            self.content_id = self.scroll.create_window((0, 0), window=self.content, anchor="nw")
+            self.content.bind("<Configure>", lambda _event: self.scroll.configure(
+                scrollregion=self.scroll.bbox("all")))
+            self.scroll.bind("<Configure>", self.resize_content)
+            self.scroll.bind("<MouseWheel>", self.scroll_wheel)
+            self.charts = []
+            for index, (record, data) in enumerate(prepared):
+                label = tk.Label(self.content, text=f"{index + 1}. {record.get('name') or '이름 없음'} · 담당자 {record.get('owner') or '-'}",
+                                 anchor="w", font=("맑은 고딕", 10, "bold"))
+                label.pack(fill="x", padx=8, pady=(14, 2))
+                chart = tk.Canvas(self.content, height=370, highlightthickness=1)
+                chart.pack(fill="x", padx=8, pady=(0, 8))
+                chart.bind("<Configure>", lambda _event, c=chart, d=data: _render(c, kind, d, axes))
+                chart.bind("<MouseWheel>", self.scroll_wheel)
+                label.bind("<MouseWheel>", self.scroll_wheel)
+                self.charts.append(chart)
+        apply_theme(self.window, self.window._ui_theme)
+        if kind == "mechanical":
+            for index, label in enumerate(legend.winfo_children()):
+                label.configure(fg=COMPARISON_COLORS[index % len(COMPARISON_COLORS)])
+            self.redraw()
+        else:
+            self.window.after_idle(self.redraw)
+        root = panel.winfo_toplevel()
+        if not hasattr(root, "_graph_windows"):
+            root._graph_windows = []
+        root._graph_windows.append(self)
+        self.window.bind("<Destroy>", self._destroyed, add="+")
+
+    def _destroyed(self, event):
+        if event.widget is self.window:
+            try:
+                self.panel.winfo_toplevel()._graph_windows.remove(self)
+            except (AttributeError, ValueError, tk.TclError):
+                pass
+
+    def toggle_pin(self):
+        self._pinned = not self._pinned
+        self.window.attributes("-topmost", self._pinned)
+        self.pin_button.configure(text="고정 해제" if self._pinned else "창 고정")
+
+    def resize_content(self, event):
+        self.scroll.itemconfigure(self.content_id, width=event.width)
+
+    def scroll_wheel(self, event):
+        if self.kind == "electrical":
+            self.scroll.yview_scroll(-int(event.delta / 120), "units")
+
+    def redraw(self, _event=None):
+        if self.kind == "mechanical":
+            profiles = [(data, COMPARISON_COLORS[index % len(COMPARISON_COLORS)])
+                        for index, (_record, data) in enumerate(self.prepared)]
+            _draw_simulation(self.canvas, self.kind, self.prepared[0][1], self.axes,
+                             profiles_override=profiles)
+        else:
+            for chart, (_record, data) in zip(self.charts, self.prepared):
+                _render(chart, self.kind, data, self.axes)
+
+    def save_png(self):
+        path = filedialog.asksaveasfilename(
+            parent=self.window, title="비교 그래프 PNG 저장", defaultextension=".png",
+            initialfile=f"{TITLES[self.kind]}_비교.png", filetypes=[("PNG 이미지", "*.png")],
+        )
+        if not path:
+            return
+        try:
+            palette = get_theme(self.window)[1]
+            if self.kind == "mechanical":
+                profiles = [(data, COMPARISON_COLORS[index % len(COMPARISON_COLORS)])
+                            for index, (_record, data) in enumerate(self.prepared)]
+                png = render_png(profiles[0][0], palette, size=(1100, 500),
+                                 axes=self.axes, comparisons=profiles)
+            else:
+                png = stack_pngs([_png(self.kind, data, palette, self.axes)
+                                  for _record, data in self.prepared])
+            Path(path).write_bytes(png)
+        except (OSError, ValueError, KeyError, TypeError, OverflowError) as error:
+            messagebox.showerror("PNG 저장 실패", str(error), parent=self.window)
+        else:
+            messagebox.showinfo("PNG 저장", f"비교 그래프를 저장했습니다.\n{path}", parent=self.window)
+
+
 def refresh_live_graphs(panel, kind):
     root = panel.winfo_toplevel()
     for graph in tuple(getattr(root, "_graph_windows", ())):
@@ -577,6 +706,9 @@ def manage_graphs(panel, kind):
         ]
 
     def load(indices):
+        if kind in ("mechanical", "electrical") and len(indices) > 12:
+            messagebox.showerror(title, "화면 응답을 위해 한 번에 최대 12개를 비교할 수 있습니다.", parent=panel)
+            return
         saved = dict(store.graph_history(kind))
         prepared = []
         invalid = []
@@ -601,6 +733,9 @@ def manage_graphs(panel, kind):
         if not prepared:
             return
         axes = axes_for_graphs(kind, [data for _, data in prepared])
+        if kind in ("mechanical", "electrical") and len(prepared) > 1:
+            ComparisonWindow(panel, kind, prepared, axes)
+            return
         created = [
             open_graph(
                 panel,

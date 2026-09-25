@@ -4,8 +4,12 @@ import pytest
 from types import SimpleNamespace
 
 from src.persistence import storage
+from src.core.energy_model import compare_trips
 from src.ui.chart_png import export_chart_png
-from src.ui.graph_workspace import GraphWindow, graph_data
+from src.ui.graph_workspace import GraphWindow, graph_data, manage_graphs, ComparisonWindow
+from src.ui.native_plot import render_png, stack_pngs
+from src.ui.graph_axes import axes_for_graphs
+import struct
 
 
 def test_saved_graphs_roundtrip_and_multiple_delete(tmp_path, monkeypatch):
@@ -116,3 +120,41 @@ def test_live_simulation_window_reuses_completed_profile():
     chart.panel._graph_state_mechanical = {"distance": "40"}
     GraphWindow.refresh(chart)
     assert chart.data is None and messages[-2] == "cleared"
+
+
+@pytest.mark.parametrize("kind", ["mechanical", "electrical"])
+def test_saved_simulation_group_opens_one_comparison_window(kind, monkeypatch):
+    state = {"distance": "30", "vmax": "2", "amax": "1", "jerk": "0.8", "mass": "1500", "force": "100"}
+    profile = graph_data("mechanical", state)
+    data = profile if kind == "mechanical" else compare_trips(
+        dict(distance=30, car_mass=1000, load_mass=500, counterweight_mass=1500,
+             equivalent_extra_mass=0, resistance=100, direction="상승",
+             drive_efficiency=.85, regen_efficiency=.5, auxiliary_kw=.1),
+        dict(vmax=2, amax=1, jerk=.8), dict(vmax=2, amax=1, jerk=.8),
+    )
+    records = [(0, {"kind": kind, "state": state, "name": "A"}),
+               (1, {"kind": kind, "state": state, "name": "B"})]
+    panel = SimpleNamespace(store=SimpleNamespace(graph_history=lambda selected=None: records))
+    created = []
+    monkeypatch.setattr("src.ui.graph_workspace.open_record_manager",
+                        lambda _panel, _title, _fields, _records, load, *_args, **_kwargs: load([0, 1]))
+    monkeypatch.setattr("src.ui.graph_workspace.graph_data", lambda _kind, _state: data)
+    monkeypatch.setattr("src.ui.graph_workspace.ComparisonWindow",
+                        lambda _panel, _kind, prepared, axes: created.append((prepared, axes)))
+    monkeypatch.setattr("src.ui.graph_workspace.open_graph",
+                        lambda *_args, **_kwargs: pytest.fail("Should not open separate chart windows"))
+    manage_graphs(panel, kind)
+    assert len(created) == 1 and len(created[0][0]) == 2
+    assert created[0][1]["x_max"] >= profile["duration_s"]
+
+
+def test_comparison_png_contains_colored_profiles_and_stacked_energy():
+    short = graph_data("mechanical", dict(distance="20", vmax="2", amax="1", jerk=".8", mass="1500", force="100"))
+    long = graph_data("mechanical", dict(distance="40", vmax="2", amax="1", jerk=".8", mass="1500", force="100"))
+    palette = {"surface": "#ffffff", "text": "#222222", "accent": "#2879cc"}
+    axes = axes_for_graphs("mechanical", [short, long])
+    png = render_png(short, palette, size=(640, 350), axes=axes,
+                     comparisons=[(short, "#2475d0"), (long, "#e36b28")])
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    stacked = stack_pngs([png, png])
+    assert struct.unpack_from("!2I", stacked, 16) == (640, 700)

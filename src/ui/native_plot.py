@@ -61,7 +61,8 @@ def _rgb(value):
         return (40, 40, 40)
 
 
-def render_png(profile, palette, reference=None, size=(1100, 440), axes=None):
+def render_png(profile, palette, reference=None, size=(1100, 440), axes=None,
+               comparisons=None):
     """축·보조선·곡선을 PNG 바이트로 반환한다. Pillow/Ghostscript 불필요."""
     w, h = size
     if w < 360 or h < 200:
@@ -119,6 +120,9 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None):
         return ((samples[i], values[i]) for i in indices)
 
     profiles = (
+        tuple((str(index + 1), sample, _rgb(color))
+              for index, (sample, color) in enumerate(comparisons))
+        if comparisons is not None else
         (
             ("REFERENCE", reference, _rgb("#4d9aff")),
             ("CANDIDATE", profile, _rgb("#f3a450")),
@@ -199,7 +203,10 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None):
                     line(previous, point, color, 2)
                 previous = point
     label("TIME (S)", right - 100, h - 14)
-    if reference:
+    if comparisons is not None:
+        for index, (_, _, color) in enumerate(profiles):
+            label(str(index + 1), left + index % 12 * 40, 5, color)
+    elif reference:
         label("REFERENCE", left, 5, profiles[0][2])
         label("CANDIDATE", left + 160, 5, profiles[1][2])
     raw = b"".join(b"\x00" + pixels[y * w * 3 : (y + 1) * w * 3] for y in range(h))
@@ -218,3 +225,41 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None):
         + chunk(b"IDAT", zlib.compress(raw, 6))
         + chunk(b"IEND", b"")
     )
+
+
+def stack_pngs(images):
+    """Vertically join RGB PNGs from the internal renderer with no image dependency."""
+    if not images:
+        raise ValueError("저장할 그래프가 없습니다.")
+    width = None
+    rows = []
+    for image in images:
+        if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("PNG 데이터가 올바르지 않습니다.")
+        offset, compressed = 8, bytearray()
+        while offset < len(image):
+            length = struct.unpack_from("!I", image, offset)[0]
+            kind = image[offset + 4:offset + 8]
+            value = image[offset + 8:offset + 8 + length]
+            if kind == b"IHDR":
+                w, h, depth, color, compression, filtering, interlace = struct.unpack("!2I5B", value)
+                if (depth, color, compression, filtering, interlace) != (8, 2, 0, 0, 0) or (width is not None and w != width):
+                    raise ValueError("비교 PNG는 동일한 가로 크기의 RGB여야 합니다.")
+                width = w
+            elif kind == b"IDAT":
+                compressed.extend(value)
+            offset += length + 12
+        raw = zlib.decompress(compressed)
+        if len(raw) != h * (1 + 3 * width) or any(raw[i * (1 + 3 * width)] != 0 for i in range(h)):
+            raise ValueError("비교 PNG의 이미지 데이터가 올바르지 않습니다.")
+        rows.append(raw)
+    output = b"".join(rows)
+    height = sum(len(raw) // (1 + 3 * width) for raw in rows)
+
+    def chunk(kind, data):
+        return (struct.pack("!I", len(data)) + kind + data
+                + struct.pack("!I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack("!2I5B", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(output, 6)) + chunk(b"IEND", b""))
