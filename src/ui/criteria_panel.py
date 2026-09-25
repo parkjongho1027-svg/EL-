@@ -17,7 +17,7 @@ from src.core.elevator_review_engine import (
     evaluate_traction_case,
     review_guidance,
 )
-from src.core.inspection_record import normalize_inspection_record
+from src.core.design_documents import normalize_design_documents
 from ui_components import SkyButton, attach_numeric_validation
 from utils import parse_number
 
@@ -41,7 +41,7 @@ class CriteriaPanel(tk.Frame):
         self.store = store
         self.services = services
         self.entries = {}
-        self.inspection_record = normalize_inspection_record({})
+        self.design_documents = normalize_design_documents({})
         self.undo_stack = []
         self.storage_key = "criteria"
         self.previous_values = store.previous(self.storage_key)
@@ -185,9 +185,9 @@ class CriteriaPanel(tk.Frame):
             state="normal" if self.input_history else "disabled",
         )
         self.history_button.pack(side="left", padx=5)
-        from src.ui.inspection_dialog import open_inspection_dialog
+        from src.ui.design_documents_dialog import open_design_documents_dialog
         SkyButton(
-            frame, text="현장 관찰 기록", command=lambda: open_inspection_dialog(self), width=15,
+            frame, text="설치 전 설계자료", command=lambda: open_design_documents_dialog(self), width=15,
         ).pack(anchor="w", pady=(0, 9))
 
         result_holder = tk.LabelFrame(
@@ -224,8 +224,8 @@ class CriteriaPanel(tk.Frame):
         state.update(
             {f"__brake_{key}__": var.get() for key, var in self.brake_checks.items()}
         )
-        state["__inspection_record__"] = normalize_inspection_record(
-            getattr(self, "inspection_record", None))
+        state["__design_documents__"] = normalize_design_documents(
+            getattr(self, "design_documents", None))
         return state
 
     def apply_state(self, state, remember_undo=True):
@@ -243,7 +243,7 @@ class CriteriaPanel(tk.Frame):
         self.speed_conditions.set(state.get("__speed_conditions__", False))
         for key, var in self.brake_checks.items():
             var.set(state.get(f"__brake_{key}__", "자료 없음"))
-        self.inspection_record = normalize_inspection_record(state.get("__inspection_record__"))
+        self.design_documents = normalize_design_documents(state.get("__design_documents__"))
 
     def _remember(self, summary):
         if getattr(self.store, "_suppress_history", False):
@@ -268,7 +268,7 @@ class CriteriaPanel(tk.Frame):
                 or current["__speed_conditions__"]
                 or any(var.get() != "자료 없음" for var in self.brake_checks.values())
             )
-            or current["__inspection_record__"] != normalize_inspection_record({})
+            or current["__design_documents__"] != normalize_design_documents({})
         ):
             self.store.set_previous(self.storage_key, current)
             self.previous_values = self.store.previous(self.storage_key)
@@ -279,7 +279,7 @@ class CriteriaPanel(tk.Frame):
             v.set("자료 없음")
         self.drive.set("권상식")
         self.speed_conditions.set(False)
-        self.inspection_record = normalize_inspection_record({})
+        self.design_documents = normalize_design_documents({})
         self._show("입력값을 삭제했습니다.")
 
     def restore_previous(self):
