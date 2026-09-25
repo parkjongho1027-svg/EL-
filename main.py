@@ -35,23 +35,23 @@ from queue import Empty, SimpleQueue
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, ttk
-from assets import FORMULA_IMAGE_DATA, FORMULA_TEXT_EN
-from app_config import APP_BUILD, FORMULA_VERSION, BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
-from theme_manager import (THEMES, get_theme, apply_theme, style_combobox_popdown,
+from src.config.assets import FORMULA_IMAGE_DATA, FORMULA_TEXT_EN
+from src.config.constants import APP_BUILD, FORMULA_VERSION, BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
+from src.ui.theme_manager import (THEMES, get_theme, apply_theme, style_combobox_popdown,
                            bind_combobox_popdown_theme, configure_ttk_theme, apply_font_scale)
-from ui_components import (SkyButton, WindowManager, center_child_window,
+from src.ui.ui_components import (SkyButton, WindowManager, center_child_window,
                            app_ask_string, app_ask_project_info, messagebox, set_dialog_root,
                            attach_numeric_validation)
-from storage import (PersistentStore, get_data_file_path, normalize_record,
+from src.persistence.storage import (PersistentStore, get_data_file_path, normalize_record,
                      CALCULATOR_KEYS, MAX_HISTORY_PER_CALCULATOR)
-from utils import (clean_number_text, parse_number, ensure_positive,
+from src.common.utils import (clean_number_text, parse_number, ensure_positive,
                    calculate_safely, require_calculation)
 from src.core.calculators import (
     calculate_motor_value, calculate_traction_values, calculate_brake_values,
     calculate_traffic_values, traffic_pdf_reference, traffic_visible_input_fields,
     run_calculation_self_tests,
 )
-from simulation_plot import draw_scurve_plot, draw_energy_comparison
+from src.ui.simulation_plot import draw_scurve_plot, draw_energy_comparison
 from src.core.energy_model import compare_trips, read_measurement
 from src.ui.motor_duty_dialog import open_motor_duty_dialog
 from src.ui.engineering_charts import show_tension, show_capacity
@@ -64,7 +64,7 @@ from src.ui.scurve_panel import SCurvePanel, SCurvePanelServices
 from src.ui.motor_panel import SolverPanel, MotorPanelServices
 from src.ui.traffic_panel import TrafficPanel, TrafficPanelServices
 from src.ui.graph_workspace import refresh_live_graphs
-from background_jobs import calculate_snapshot
+from src.services.background_jobs import calculate_snapshot
 
 
 INITIAL_RESULT_MESSAGE = (

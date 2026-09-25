@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 from concurrent.futures import Future
 from main import LiveCalculationController
-from background_jobs import calculate_snapshot
+from src.services.background_jobs import calculate_snapshot
 class Root:
     def __init__(self):self.jobs=[]
     def after(self,_delay,callback):self.jobs.append(callback);return len(self.jobs)

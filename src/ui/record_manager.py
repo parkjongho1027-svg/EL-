@@ -2,8 +2,8 @@
 
 import tkinter as tk
 from tkinter import ttk
-from theme_manager import apply_theme, apply_font_scale
-from ui_components import SkyButton, WindowManager, app_ask_string, messagebox
+from src.ui.theme_manager import apply_theme, apply_font_scale
+from src.ui.ui_components import SkyButton, WindowManager, app_ask_string, messagebox
 
 
 def open_record_manager(

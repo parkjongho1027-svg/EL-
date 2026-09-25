@@ -4,8 +4,8 @@ import tempfile
 from pathlib import Path
 import main
 from src.ui import scurve_panel
-from elevator_review_engine import scurve_profile
-from native_plot import render_png
+from src.core.elevator_review_engine import scurve_profile
+from src.ui.native_plot import render_png
 
 p=scurve_profile(30,2,1,.8,1500)
 data=render_png(p,{'surface':'#ffffff','text':'#222222','accent':'#2879cc'})

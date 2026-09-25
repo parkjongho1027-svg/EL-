@@ -15,15 +15,15 @@ from src.ui.graph_workspace import (
     panel_state,
     refresh_live_graphs,
 )
-from simulation_plot import draw_scurve_plot, draw_energy_comparison
-from theme_manager import get_theme, apply_theme
-from ui_components import (
+from src.ui.simulation_plot import draw_scurve_plot, draw_energy_comparison
+from src.ui.theme_manager import get_theme, apply_theme
+from src.ui.ui_components import (
     WindowManager,
     SkyButton,
     attach_numeric_validation,
     messagebox,
 )
-from utils import parse_number
+from src.common.utils import parse_number
 
 
 @dataclass(frozen=True)
@@ -359,9 +359,9 @@ class SCurvePanel(tk.Frame):
         try:
             palette = get_theme(self)[1]
             try:
-                from plot_render import render_plot
+                from src.ui.plot_render import render_plot
             except ImportError:
-                from native_plot import render_png
+                from src.ui.native_plot import render_png
 
                 Path(path).write_bytes(
                     render_png(profile, palette, reference, size=(1100, 440))

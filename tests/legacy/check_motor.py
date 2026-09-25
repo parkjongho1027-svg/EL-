@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from main import SolverPanel, calculate_motor_value
-from elevator_review_engine import evaluate_motor_capacity, review_guidance
+from src.core.elevator_review_engine import evaluate_motor_capacity, review_guidance
 class E:
  def __init__(self,value=''):self.value=value
  def get(self):return self.value

@@ -4,7 +4,7 @@ import math
 import struct
 import zlib
 
-from native_plot import FONT
+from src.ui.native_plot import FONT
 from src.ui.graph_axes import axes_for_graphs
 
 

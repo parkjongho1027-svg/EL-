@@ -3,11 +3,11 @@ import math
 
 import pytest
 
-from calculators import (calculate_motor_value, calculate_traction_values,
+from src.core.calculators import (calculate_motor_value, calculate_traction_values,
                          calculate_brake_values, calculate_traffic_values)
-from energy_model import EnergyTripInput, estimate_trip
-from elevator_review_engine import scurve_profile
-from errors import CalculationInputError, SimulationLimitError
+from src.core.energy_model import EnergyTripInput, estimate_trip
+from src.core.elevator_review_engine import scurve_profile
+from src.core.errors import CalculationInputError, SimulationLimitError
 
 
 @pytest.mark.parametrize('target,expected', [('P',30.330882352941178),('Q',1500),('V',180)])

@@ -7,8 +7,8 @@ import tkinter as tk
 from src.core.calculators import calculate_traction_values
 from src.ui.engineering_charts import show_tension
 from src.ui.graph_workspace import manage_graphs, save_current_graph
-from ui_components import SkyButton, attach_numeric_validation
-from utils import (parse_number, ensure_positive, require_calculation, calculate_safely)
+from src.ui.ui_components import SkyButton, attach_numeric_validation
+from src.common.utils import (parse_number, ensure_positive, require_calculation, calculate_safely)
 
 
 @dataclass(frozen=True)

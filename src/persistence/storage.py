@@ -1,17 +1,27 @@
 """입력 기록·프로젝트 설정의 영구 저장."""
+
 import json
 import os
 import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from app_config import APP_BUILD, FORMULA_VERSION
+from src.config.constants import APP_BUILD, FORMULA_VERSION
 from src.config.themes import THEMES
-from utils import clean_number_text
+from src.common.utils import clean_number_text
 
-CALCULATOR_KEYS = ("motor", "traction", "brake", "traffic", "criteria", "scurve", "motor_duty")
+CALCULATOR_KEYS = (
+    "motor",
+    "traction",
+    "brake",
+    "traffic",
+    "criteria",
+    "scurve",
+    "motor_duty",
+)
 
 MAX_HISTORY_PER_CALCULATOR = 500
+
 
 def get_data_file_path():
     """입력 기록과 화면 설정을 저장할 파일 위치를 반환합니다.
@@ -27,12 +37,14 @@ def get_data_file_path():
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir / "user_data.json"
 
+
 def normalize_record(record):
     """같은 숫자를 2400 또는 2,400으로 입력해도 같은 기록으로 처리합니다."""
     normalized = {}
     for key, value in record.items():
         normalized[key] = value if key.startswith("__") else clean_number_text(value)
     return normalized
+
 
 class PersistentStore:
     """이전 입력값·입력 기록·화면 모드를 종료 후에도 보관합니다."""
@@ -43,7 +55,9 @@ class PersistentStore:
             self.path = get_data_file_path()
         except OSError as error:
             # 사용자 데이터 폴더에 접근할 수 없어도 계산 기능 자체는 사용할 수 있습니다.
-            self.path = Path(tempfile.gettempdir()) / "elevator_calculator_user_data.json"
+            self.path = (
+                Path(tempfile.gettempdir()) / "elevator_calculator_user_data.json"
+            )
             self.load_warning = (
                 "사용자 데이터 폴더를 열 수 없어 이번에는 임시 저장소를 사용합니다.\n"
                 f"프로그램 종료 후 기록이 유지되지 않을 수 있습니다.\n{error}"
@@ -82,7 +96,11 @@ class PersistentStore:
                 self.data["always_on_top"] = loaded["always_on_top"]
             if loaded.get("font_size") in (9, 10, 11, 12, 13, 14):
                 self.data["font_size"] = loaded["font_size"]
-            if loaded.get("window_preset") in ("자동", "PC 1000×680", "데스크톱 1200×800"):
+            if loaded.get("window_preset") in (
+                "자동",
+                "PC 1000×680",
+                "데스크톱 1200×800",
+            ):
                 self.data["window_preset"] = loaded["window_preset"]
             elif loaded.get("window_preset") in ("패드 900×650", "소형 760×600"):
                 # 이전 빌드의 작은 화면 설정은 PC 전용 규격으로 자동 이전합니다.
@@ -91,17 +109,24 @@ class PersistentStore:
                 self.data["language"] = loaded["language"]
             projects = loaded.get("projects", [])
             if isinstance(projects, list):
-                self.data["projects"] = [item for item in projects if isinstance(item, dict)]
+                self.data["projects"] = [
+                    item for item in projects if isinstance(item, dict)
+                ]
             graphs = loaded.get("graphs", [])
             if isinstance(graphs, list):
-                self.data["graphs"] = [item for item in graphs if
-                    isinstance(item, dict) and item.get("kind") in
-                    ("traction", "traffic", "mechanical", "electrical") and
-                    isinstance(item.get("state"), dict)][-MAX_HISTORY_PER_CALCULATOR:]
+                self.data["graphs"] = [
+                    item
+                    for item in graphs
+                    if isinstance(item, dict)
+                    and item.get("kind")
+                    in ("traction", "traffic", "mechanical", "electrical")
+                    and isinstance(item.get("state"), dict)
+                ][-MAX_HISTORY_PER_CALCULATOR:]
             presets = loaded.get("traffic_presets", {})
             if isinstance(presets, dict):
                 self.data["traffic_presets"] = {
-                    str(name): values for name, values in presets.items()
+                    str(name): values
+                    for name, values in presets.items()
                     if isinstance(values, dict)
                 }
             loaded_calculators = loaded.get("calculators", {})
@@ -117,8 +142,9 @@ class PersistentStore:
                     self.data["calculators"][key]["previous"] = previous
                 if isinstance(history, list):
                     valid_history = [item for item in history if isinstance(item, dict)]
-                    self.data["calculators"][key]["history"] = \
-                        valid_history[-MAX_HISTORY_PER_CALCULATOR:]
+                    self.data["calculators"][key]["history"] = valid_history[
+                        -MAX_HISTORY_PER_CALCULATOR:
+                    ]
         except (OSError, ValueError, TypeError) as error:
             # 손상 파일을 그대로 두고 새 저장을 하면 기록을 덮어쓸 수 있으므로
             # 시각이 붙은 백업본을 먼저 만든 뒤 새 저장 파일을 사용합니다.
@@ -155,14 +181,20 @@ class PersistentStore:
 
     def simulation_history(self, mode=None):
         """시뮬레이션 입력 상태를 별도의 계산 기록 형식으로 유지한다."""
-        history=self.data["calculators"]["scurve"]["history"]
-        return [(i, item.copy()) for i,item in enumerate(history)
-                if item.get("__simulation_mode__") in ("mechanical","electrical")
-                and (mode is None or item["__simulation_mode__"]==mode)]
+        history = self.data["calculators"]["scurve"]["history"]
+        return [
+            (i, item.copy())
+            for i, item in enumerate(history)
+            if item.get("__simulation_mode__") in ("mechanical", "electrical")
+            and (mode is None or item["__simulation_mode__"] == mode)
+        ]
 
     def graph_history(self, kind=None):
-        return [(index, item.copy()) for index, item in enumerate(self.data.setdefault("graphs", []))
-                if kind is None or item["kind"] == kind]
+        return [
+            (index, item.copy())
+            for index, item in enumerate(self.data.setdefault("graphs", []))
+            if kind is None or item["kind"] == kind
+        ]
 
     def add_graph(self, kind, name, owner, state):
         if kind not in ("traction", "traffic", "mechanical", "electrical"):
@@ -171,8 +203,13 @@ class PersistentStore:
             raise ValueError("그래프 이름과 입력 상태를 확인하세요.")
         if not isinstance(owner, str):
             raise ValueError("담당자 이름을 확인하세요.")
-        record = {"kind": kind, "name": name.strip()[:100], "owner": owner.strip()[:100],
-                  "state": state, "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        record = {
+            "kind": kind,
+            "name": name.strip()[:100],
+            "owner": owner.strip()[:100],
+            "state": state,
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
         self.data.setdefault("graphs", []).append(record)
         del self.data["graphs"][:-MAX_HISTORY_PER_CALCULATOR]
         self.save()
@@ -197,22 +234,28 @@ class PersistentStore:
         self.save()
 
     def add_simulation(self, mode, state, summary):
-        if mode not in ("mechanical","electrical"):
+        if mode not in ("mechanical", "electrical"):
             raise ValueError("알 수 없는 시뮬레이션 종류입니다.")
-        history=self.data["calculators"]["scurve"]["history"]
-        record={"__simulation_mode__":mode,"__state__":state,
-                "__result_summary__":str(summary),
-                "__timestamp__":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "__formula_version__":FORMULA_VERSION}
+        history = self.data["calculators"]["scurve"]["history"]
+        record = {
+            "__simulation_mode__": mode,
+            "__state__": state,
+            "__result_summary__": str(summary),
+            "__timestamp__": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "__formula_version__": FORMULA_VERSION,
+        }
         history.append(record)
         del history[:-MAX_HISTORY_PER_CALCULATOR]
-        self.data["calculators"]["scurve"]["previous"]=record.copy()
+        self.data["calculators"]["scurve"]["previous"] = record.copy()
         self.save()
         return record
 
     def delete_simulation(self, index):
-        history=self.data["calculators"]["scurve"]["history"]
-        if 0<=index<len(history) and history[index].get("__simulation_mode__") in ("mechanical","electrical"):
+        history = self.data["calculators"]["scurve"]["history"]
+        if 0 <= index < len(history) and history[index].get("__simulation_mode__") in (
+            "mechanical",
+            "electrical",
+        ):
             del history[index]
             self.save()
 
@@ -346,7 +389,9 @@ class PersistentStore:
         return self.projects()
 
     def save_traffic_preset(self, name, values):
-        self.data.setdefault("traffic_presets", {})[str(name)] = normalize_record(values)
+        self.data.setdefault("traffic_presets", {})[str(name)] = normalize_record(
+            values
+        )
         self.save()
 
     def traffic_preset(self, name):

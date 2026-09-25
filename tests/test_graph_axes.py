@@ -5,7 +5,7 @@ import zlib
 
 import pytest
 
-from native_plot import render_png
+from src.ui.native_plot import render_png
 from src.ui.chart_png import export_chart_png
 from src.ui.graph_axes import axes_for_graphs, nice_step
 from src.ui.graph_workspace import graph_data

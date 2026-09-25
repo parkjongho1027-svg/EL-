@@ -1,6 +1,6 @@
 """Motor duty UI adapter keeps input history independent from motor sizing."""
 
-import storage
+from src.persistence import storage
 from src.core.motor_dynamics import MotorDutyInput, estimate_motor_duty
 from src.ui.motor_duty_dialog import FIELD_SPECS, format_duty_result
 

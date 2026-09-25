@@ -12,10 +12,10 @@ from src.core.errors import CalculationInputError
 from src.ui.chart_png import export_chart_png
 from src.ui.graph_axes import axes_for_graphs
 from src.ui.record_manager import open_record_manager
-from native_plot import render_png
-from theme_manager import apply_theme, get_theme
-from ui_components import SkyButton, WindowManager, app_ask_string, messagebox
-from utils import parse_number
+from src.ui.native_plot import render_png
+from src.ui.theme_manager import apply_theme, get_theme
+from src.ui.ui_components import SkyButton, WindowManager, app_ask_string, messagebox
+from src.common.utils import parse_number
 
 TITLES = {
     "traction": "로프 가닥별 정적 장력 분포",

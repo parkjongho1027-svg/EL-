@@ -1,5 +1,5 @@
 """작업 함수는 Tk를 사용하지 않고 계산 결과만 반환한다."""
-from background_jobs import calculate_snapshot
+from src.services.background_jobs import calculate_snapshot
 
 
 def test_mechanical_worker_returns_profile():

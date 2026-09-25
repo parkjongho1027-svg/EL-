@@ -1,4 +1,5 @@
 """입력식 파싱과 공통 수치 검증. Tkinter 독립."""
+
 import ast
 import math
 from typing import Any, Callable, NamedTuple
@@ -40,6 +41,7 @@ def require_calculation(outcome: CalculationOutcome):
         raise ValueError(outcome.error)
     return outcome.value
 
+
 def clean_number_text(value):
     """기록 속 숫자를 읽기 좋은 한 가지 형식으로 통일합니다."""
     text = str(value).strip()
@@ -52,6 +54,7 @@ def clean_number_text(value):
     if not math.isfinite(number):
         return text
     return f"{number:.15g}"
+
 
 def _evaluate_numeric_expression(node):
     """숫자 입력칸에서 허용한 사칙연산 AST만 안전하게 계산합니다."""
@@ -76,8 +79,9 @@ def _evaluate_numeric_expression(node):
         if isinstance(node.op, ast.Pow):
             if abs(right) > 20:
                 raise ValueError("지수의 절댓값은 20 이하만 사용할 수 있습니다.")
-            return left ** right
+            return left**right
     raise ValueError("숫자와 +, -, *, /, 괄호, 제곱(^)만 사용할 수 있습니다.")
+
 
 def parse_number(raw, label):
     """숫자 또는 간단한 계산식을 안전하게 실수로 바꾸는 공통 함수.
@@ -104,6 +108,7 @@ def parse_number(raw, label):
     if not math.isfinite(value):
         raise ValueError(f"'{label}'에는 유한한 숫자만 입력해주세요.")
     return value
+
 
 def ensure_positive(value, label, allow_zero=False):
     """중량·시간·거리처럼 음수가 될 수 없는 입력값을 검사합니다."""

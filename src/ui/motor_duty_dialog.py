@@ -5,8 +5,8 @@ from tkinter import ttk
 
 from src.core.motor_dynamics import MotorDutyInput, estimate_motor_duty
 from src.core.errors import CalculationInputError
-from theme_manager import apply_theme
-from ui_components import SkyButton, messagebox
+from src.ui.theme_manager import apply_theme
+from src.ui.ui_components import SkyButton, messagebox
 from src.ui.record_manager import open_record_manager
 
 

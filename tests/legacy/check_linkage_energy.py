@@ -2,8 +2,8 @@
 import math
 from types import SimpleNamespace
 from main import ElevatorApp, CriteriaPanel
-from elevator_review_engine import scurve_profile
-from simulation_plot import draw_scurve_plot
+from src.core.elevator_review_engine import scurve_profile
+from src.ui.simulation_plot import draw_scurve_plot
 
 class Entry:
     def __init__(self, value=''):

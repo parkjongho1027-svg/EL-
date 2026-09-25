@@ -6,9 +6,9 @@ import math
 import tkinter as tk
 from tkinter import ttk
 
-from theme_manager import get_theme
-from ui_components import attach_numeric_validation
-from utils import parse_number, calculate_safely, require_calculation
+from src.ui.theme_manager import get_theme
+from src.ui.ui_components import attach_numeric_validation
+from src.common.utils import parse_number, calculate_safely, require_calculation
 
 
 @dataclass(frozen=True)

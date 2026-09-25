@@ -1,9 +1,9 @@
 """화면과 무관한 계산식의 정상·입력오류·내부오류 경계를 확인합니다."""
 import math
-from calculators import (calculate_motor_value, calculate_traction_values,
+from src.core.calculators import (calculate_motor_value, calculate_traction_values,
                          calculate_brake_values, calculate_traffic_values)
-from utils import calculate_safely, parse_number, require_calculation
-from elevator_review_engine import (INTERNAL_NOTICE, compare_criterion,
+from src.common.utils import calculate_safely, parse_number, require_calculation
+from src.core.elevator_review_engine import (INTERNAL_NOTICE, compare_criterion,
                                     evaluate_actual_speed, evaluate_traction_case)
 
 motor = {'Q': 1500, 'V': 180, 'OB': .45, 'eff': .8}

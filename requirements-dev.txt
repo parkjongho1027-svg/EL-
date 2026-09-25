@@ -1,5 +1,1 @@
-pytest>=8,<10
-pytest-cov>=5,<8
-Pillow>=12,<14
-ruff>=0.16,<1
-pypdf>=6,<8
+-r requirements-dev-lock.txt

@@ -152,6 +152,7 @@ def explore_designs(request: DesignRequest):
     ]
     ratings = sorted(set(request.motor_options_kw))
     candidates = []
+    all_cases = []
     rejected = 0
     for ropes in range(4, 13):
         for ob_index in range(9):
@@ -171,20 +172,20 @@ def explore_designs(request: DesignRequest):
             motor = next(
                 (v for v in ratings if v >= peak_kw * request.power_margin), None
             )
+            row = {
+                "ropes": ropes,
+                "balance_pct": balance * 100,
+                "selected_motor_kw": motor,
+                "required_peak_kw": peak_kw,
+                "peak_torque_nm": torque,
+                "max_static_tension_n_per_rope": tension,
+                "surrogate_peak_kw": _estimate(anchors, ropes, balance),
+            }
+            all_cases.append(row)
             if motor is None:
                 rejected += 1
                 continue
-            candidates.append(
-                {
-                    "ropes": ropes,
-                    "balance_pct": balance * 100,
-                    "selected_motor_kw": motor,
-                    "required_peak_kw": peak_kw,
-                    "peak_torque_nm": torque,
-                    "max_static_tension_n_per_rope": tension,
-                    "surrogate_peak_kw": _estimate(anchors, ropes, balance),
-                }
-            )
+            candidates.append(row)
     candidates.sort(
         key=lambda item: (
             item["selected_motor_kw"],
@@ -208,4 +209,18 @@ def explore_designs(request: DesignRequest):
         "holdout_mean_error_pct": 100 * mean(relative_errors),
         "holdout_max_error_pct": 100 * max(relative_errors),
         "tested_cases": 81,
+        "all_cases": all_cases,
     }
+
+
+def candidates_under_peak(report: dict, target_kw: float) -> list[dict]:
+    """Filter sampled, motor-rated cases; never claim a continuous or legal optimum."""
+    if isinstance(target_kw, bool) or not isinstance(target_kw, (int, float)) or not math.isfinite(target_kw) or target_kw <= 0:
+        raise CalculationInputError("목표 피크 동력은 유한한 양수(kW)여야 합니다.")
+    cases = report.get("all_cases")
+    if not isinstance(cases, list) or len(cases) != 81:
+        raise CalculationInputError("먼저 설계 후보 81개를 계산하세요.")
+    return sorted(
+        (row for row in cases if row["selected_motor_kw"] is not None and row["required_peak_kw"] <= target_kw),
+        key=lambda row: (row["balance_pct"], row["selected_motor_kw"], row["ropes"]),
+    )

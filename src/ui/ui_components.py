@@ -1,8 +1,9 @@
 """공통 버튼과 앱 전용 다국어 다이얼로그."""
+
 import tkinter as tk
 import re
-from app_config import BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
-from theme_manager import THEMES, apply_theme, apply_font_scale
+from src.config.constants import BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
+from src.ui.theme_manager import THEMES, apply_theme, apply_font_scale
 
 _dialog_root = None
 
@@ -31,9 +32,12 @@ def numeric_input_allowed(proposed, *, list_mode=False):
 
 
 def attach_numeric_validation(entry, *, list_mode=False):
-    command = entry.register(lambda proposed: numeric_input_allowed(proposed, list_mode=list_mode))
+    command = entry.register(
+        lambda proposed: numeric_input_allowed(proposed, list_mode=list_mode)
+    )
     entry.configure(validate="key", validatecommand=(command, "%P"))
     return entry
+
 
 class SkyButton(tk.Frame):
     """파란 외곽선 안에 실제 Tk 버튼을 넣은 접근성 대응 공통 버튼입니다."""
@@ -50,10 +54,20 @@ class SkyButton(tk.Frame):
 
         # 이전 tk/ttk 버튼에서 사용하던 색상 옵션은 공통 테마가 결정합니다.
         for option in (
-            "bg", "background", "fg", "foreground", "activebackground",
-            "activeforeground", "disabledforeground", "relief", "bd",
-            "borderwidth", "highlightthickness", "highlightbackground",
-            "highlightcolor", "style",
+            "bg",
+            "background",
+            "fg",
+            "foreground",
+            "activebackground",
+            "activeforeground",
+            "disabledforeground",
+            "relief",
+            "bd",
+            "borderwidth",
+            "highlightthickness",
+            "highlightbackground",
+            "highlightcolor",
+            "style",
         ):
             kwargs.pop(option, None)
 
@@ -61,9 +75,16 @@ class SkyButton(tk.Frame):
         self._cursor = cursor
         self._theme_mode = "light"
         self._button = tk.Button(
-            self, text=text, font=font, width=width,
-            padx=inner_padx, pady=inner_pady, bd=0, relief="flat",
-            command=self._invoke_command, takefocus=True
+            self,
+            text=text,
+            font=font,
+            width=width,
+            padx=inner_padx,
+            pady=inner_pady,
+            bd=0,
+            relief="flat",
+            command=self._invoke_command,
+            takefocus=True,
         )
         self._button.pack(fill="both", expand=True, padx=2, pady=2)
 
@@ -88,16 +109,20 @@ class SkyButton(tk.Frame):
             foreground = BUTTON_TEXT
             disabled_fg = "#666666"
 
-        super().configure(bg=border, cursor=self._cursor if self._state != "disabled" else "arrow")
+        super().configure(
+            bg=border, cursor=self._cursor if self._state != "disabled" else "arrow"
+        )
         self._button.configure(
-            bg=normal_bg, activebackground=active_bg,
+            bg=normal_bg,
+            activebackground=active_bg,
             fg=foreground if self._state != "disabled" else disabled_fg,
             activeforeground=foreground,
             disabledforeground=disabled_fg,
             cursor=self._cursor if self._state != "disabled" else "arrow",
             state=self._state,
             highlightthickness=1 if self._button.focus_get() is self._button else 0,
-            highlightbackground=border, highlightcolor=border
+            highlightbackground=border,
+            highlightcolor=border,
         )
 
     def apply_palette(self, mode):
@@ -148,8 +173,10 @@ class SkyButton(tk.Frame):
     def focus_set(self):
         self._button.focus_set()
 
+
 class WindowManager:
     """모든 보조창의 생성 위치와 화면 경계 처리를 한 곳에서 관리합니다."""
+
     SCREEN_MARGIN_X = 24
     SCREEN_MARGIN_Y = 72
 
@@ -168,14 +195,17 @@ class WindowManager:
         window.geometry(f"{width}x{height}+{x}+{y}")
         return width, height
 
+
 def center_child_window(window, parent=None, width=None, height=None):
     """호환용 래퍼. 모든 창 배치는 WindowManager가 실제로 처리합니다."""
     return WindowManager.center(window, parent, width, height)
+
 
 def _dialog_language(parent):
     if parent is None:
         parent = resolve_dialog_parent(parent)
     return getattr(parent, "_language", "ko")
+
 
 def app_show_message(title, message, parent=None, kind="info", **_kwargs):
     """OS 언어와 무관하게 확인 버튼까지 앱 언어로 표시하는 안내창입니다."""
@@ -190,14 +220,25 @@ def app_show_message(title, message, parent=None, kind="info", **_kwargs):
     symbols = {"info": "i", "warning": "!", "error": "×"}
     body = tk.Frame(window)
     body.pack(fill="both", expand=True, padx=22, pady=(22, 12))
-    icon = tk.Label(body, text=symbols.get(kind, "i"), width=2,
-                    font=("맑은 고딕", 16, "bold"))
+    icon = tk.Label(
+        body, text=symbols.get(kind, "i"), width=2, font=("맑은 고딕", 16, "bold")
+    )
     icon._theme_role = "header_1" if kind != "error" else "header_2"
     icon.pack(side="left", anchor="n", padx=(0, 14))
-    tk.Label(body, text=str(message), justify="left", anchor="w",
-             wraplength=410, font=("맑은 고딕", 10)).pack(side="left", fill="both", expand=True)
-    button = SkyButton(window, text="OK" if language == "en" else "확인",
-                       command=window.destroy, width=10)
+    tk.Label(
+        body,
+        text=str(message),
+        justify="left",
+        anchor="w",
+        wraplength=410,
+        font=("맑은 고딕", 10),
+    ).pack(side="left", fill="both", expand=True)
+    button = SkyButton(
+        window,
+        text="OK" if language == "en" else "확인",
+        command=window.destroy,
+        width=10,
+    )
     button.pack(pady=(0, 16))
     window.protocol("WM_DELETE_WINDOW", window.destroy)
     apply_theme(window, window._ui_theme)
@@ -207,6 +248,7 @@ def app_show_message(title, message, parent=None, kind="info", **_kwargs):
     button.focus_set()
     window.wait_window()
     return "ok"
+
 
 def app_ask_yes_no(title, message, parent=None, **_kwargs):
     """예/아니오까지 선택 언어로 고정되는 앱 전용 확인창입니다."""
@@ -219,9 +261,14 @@ def app_ask_yes_no(title, message, parent=None, **_kwargs):
     window.transient(parent)
     window._language = language
     window._ui_theme = getattr(parent, "_ui_theme", "light")
-    tk.Label(window, text=str(message), justify="left", anchor="w",
-             wraplength=430, font=("맑은 고딕", 10, "bold")).pack(
-                 fill="both", expand=True, padx=24, pady=(26, 16))
+    tk.Label(
+        window,
+        text=str(message),
+        justify="left",
+        anchor="w",
+        wraplength=430,
+        font=("맑은 고딕", 10, "bold"),
+    ).pack(fill="both", expand=True, padx=24, pady=(26, 16))
     buttons = tk.Frame(window)
     buttons.pack(pady=(0, 20))
 
@@ -229,11 +276,19 @@ def app_ask_yes_no(title, message, parent=None, **_kwargs):
         answer["value"] = value
         window.destroy()
 
-    yes_button = SkyButton(buttons, text="Yes" if language == "en" else "예",
-                           command=lambda: finish(True), width=10)
+    yes_button = SkyButton(
+        buttons,
+        text="Yes" if language == "en" else "예",
+        command=lambda: finish(True),
+        width=10,
+    )
     yes_button.pack(side="left", padx=6)
-    SkyButton(buttons, text="No" if language == "en" else "아니오",
-              command=lambda: finish(False), width=10).pack(side="left", padx=6)
+    SkyButton(
+        buttons,
+        text="No" if language == "en" else "아니오",
+        command=lambda: finish(False),
+        width=10,
+    ).pack(side="left", padx=6)
     window.protocol("WM_DELETE_WINDOW", lambda: finish(False))
     window.bind("<Return>", lambda _event: finish(True))
     window.bind("<Escape>", lambda _event: finish(False))
@@ -244,6 +299,7 @@ def app_ask_yes_no(title, message, parent=None, **_kwargs):
     yes_button.focus_set()
     window.wait_window()
     return answer["value"]
+
 
 def app_ask_string(title, prompt, parent=None, initialvalue=""):
     """OK/Cancel과 제목까지 앱 언어로 표시하는 한 줄 입력창입니다."""
@@ -256,8 +312,9 @@ def app_ask_string(title, prompt, parent=None, initialvalue=""):
     window.transient(parent)
     window._language = language
     window._ui_theme = getattr(parent, "_ui_theme", "light")
-    tk.Label(window, text=prompt, justify="left", anchor="w",
-             font=("맑은 고딕", 10)).pack(fill="x", padx=22, pady=(22, 8))
+    tk.Label(
+        window, text=prompt, justify="left", anchor="w", font=("맑은 고딕", 10)
+    ).pack(fill="x", padx=22, pady=(22, 8))
     entry = tk.Entry(window, font=("맑은 고딕", 11))
     entry.pack(fill="x", padx=22, pady=(0, 16))
     entry.insert(0, initialvalue or "")
@@ -269,10 +326,18 @@ def app_ask_string(title, prompt, parent=None, initialvalue=""):
         result["value"] = entry.get() if save else None
         window.destroy()
 
-    SkyButton(buttons, text="OK" if language == "en" else "확인",
-              command=lambda: finish(True), width=10).pack(side="left", padx=6)
-    SkyButton(buttons, text="Cancel" if language == "en" else "취소",
-              command=lambda: finish(False), width=10).pack(side="left", padx=6)
+    SkyButton(
+        buttons,
+        text="OK" if language == "en" else "확인",
+        command=lambda: finish(True),
+        width=10,
+    ).pack(side="left", padx=6)
+    SkyButton(
+        buttons,
+        text="Cancel" if language == "en" else "취소",
+        command=lambda: finish(False),
+        width=10,
+    ).pack(side="left", padx=6)
     window.protocol("WM_DELETE_WINDOW", lambda: finish(False))
     window.bind("<Return>", lambda _event: finish(True))
     window.bind("<Escape>", lambda _event: finish(False))
@@ -284,13 +349,16 @@ def app_ask_string(title, prompt, parent=None, initialvalue=""):
     window.wait_window()
     return result["value"]
 
+
 def app_ask_project_info(parent=None, initial_manager=""):
     """프로젝트 저장 시 프로젝트명과 담당자를 한 창에서 입력받습니다."""
     parent = resolve_dialog_parent(parent)
     language = _dialog_language(parent)
     result = {"value": None}
     window = tk.Toplevel(parent)
-    window.title("Save Elevator Project" if language == "en" else "승강기 프로젝트 저장")
+    window.title(
+        "Save Elevator Project" if language == "en" else "승강기 프로젝트 저장"
+    )
     window.resizable(False, False)
     window.transient(parent)
     window._language = language
@@ -299,13 +367,21 @@ def app_ask_project_info(parent=None, initial_manager=""):
     form = tk.Frame(window)
     form.pack(fill="both", expand=True, padx=24, pady=(22, 12))
 
-    tk.Label(form, text="Project name" if language == "en" else "프로젝트명",
-             anchor="w", font=("맑은 고딕", 10, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 6))
+    tk.Label(
+        form,
+        text="Project name" if language == "en" else "프로젝트명",
+        anchor="w",
+        font=("맑은 고딕", 10, "bold"),
+    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
     name_entry = tk.Entry(form, font=("맑은 고딕", 11), width=38)
     name_entry.grid(row=1, column=0, sticky="ew", pady=(0, 16))
 
-    tk.Label(form, text="Manager" if language == "en" else "담당자",
-             anchor="w", font=("맑은 고딕", 10, "bold")).grid(row=2, column=0, sticky="w", pady=(0, 6))
+    tk.Label(
+        form,
+        text="Manager" if language == "en" else "담당자",
+        anchor="w",
+        font=("맑은 고딕", 10, "bold"),
+    ).grid(row=2, column=0, sticky="w", pady=(0, 6))
     manager_entry = tk.Entry(form, font=("맑은 고딕", 11), width=38)
     manager_entry.grid(row=3, column=0, sticky="ew")
     manager_entry.insert(0, initial_manager or "")
@@ -322,24 +398,40 @@ def app_ask_project_info(parent=None, initial_manager=""):
         name = name_entry.get().strip()
         manager = manager_entry.get().strip()
         if not name:
-            messagebox.showwarning("Project Name" if language == "en" else "프로젝트명",
-                                   "Enter a project name." if language == "en" else "프로젝트명을 입력해주세요.",
-                                   parent=window)
+            messagebox.showwarning(
+                "Project Name" if language == "en" else "프로젝트명",
+                "Enter a project name."
+                if language == "en"
+                else "프로젝트명을 입력해주세요.",
+                parent=window,
+            )
             name_entry.focus_set()
             return
         if not manager:
-            messagebox.showwarning("Project Manager" if language == "en" else "프로젝트 담당자",
-                                   "Enter a manager name." if language == "en" else "담당자 이름을 입력해주세요.",
-                                   parent=window)
+            messagebox.showwarning(
+                "Project Manager" if language == "en" else "프로젝트 담당자",
+                "Enter a manager name."
+                if language == "en"
+                else "담당자 이름을 입력해주세요.",
+                parent=window,
+            )
             manager_entry.focus_set()
             return
         result["value"] = (name, manager)
         window.destroy()
 
-    SkyButton(buttons, text="Save" if language == "en" else "저장",
-              command=lambda: finish(True), width=10).pack(side="left", padx=6)
-    SkyButton(buttons, text="Cancel" if language == "en" else "취소",
-              command=lambda: finish(False), width=10).pack(side="left", padx=6)
+    SkyButton(
+        buttons,
+        text="Save" if language == "en" else "저장",
+        command=lambda: finish(True),
+        width=10,
+    ).pack(side="left", padx=6)
+    SkyButton(
+        buttons,
+        text="Cancel" if language == "en" else "취소",
+        command=lambda: finish(False),
+        width=10,
+    ).pack(side="left", padx=6)
     window.protocol("WM_DELETE_WINDOW", lambda: finish(False))
     window.bind("<Escape>", lambda _event: finish(False))
     name_entry.bind("<Return>", lambda _event: manager_entry.focus_set())
@@ -352,13 +444,24 @@ def app_ask_project_info(parent=None, initial_manager=""):
     window.wait_window()
     return result["value"]
 
+
 class AppMessageBox:
-    showinfo = staticmethod(lambda title, message, **kwargs: app_show_message(
-        title, message, kind="info", **kwargs))
-    showwarning = staticmethod(lambda title, message, **kwargs: app_show_message(
-        title, message, kind="warning", **kwargs))
-    showerror = staticmethod(lambda title, message, **kwargs: app_show_message(
-        title, message, kind="error", **kwargs))
+    showinfo = staticmethod(
+        lambda title, message, **kwargs: app_show_message(
+            title, message, kind="info", **kwargs
+        )
+    )
+    showwarning = staticmethod(
+        lambda title, message, **kwargs: app_show_message(
+            title, message, kind="warning", **kwargs
+        )
+    )
+    showerror = staticmethod(
+        lambda title, message, **kwargs: app_show_message(
+            title, message, kind="error", **kwargs
+        )
+    )
     askyesno = staticmethod(app_ask_yes_no)
+
 
 messagebox = AppMessageBox()

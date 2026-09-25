@@ -3,7 +3,7 @@
 import pytest
 from types import SimpleNamespace
 
-import storage
+from src.persistence import storage
 from src.ui.chart_png import export_chart_png
 from src.ui.graph_workspace import GraphWindow, graph_data
 

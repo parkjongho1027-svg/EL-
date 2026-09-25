@@ -1,14 +1,19 @@
 """Independent checks for bounded design suggestions and uploaded-data parsing."""
 
 import math
+import json
 import struct
 import wave
 
 import pytest
 
-from src.core.design_explorer import DesignRequest, explore_designs
+from src.core.design_explorer import DesignRequest, candidates_under_peak, explore_designs
+from src.core.component_spec import ComponentSpec, load_component_spec
 from src.core.document_fields import extract_fields
 from src.core.errors import CalculationInputError
+from src.core.measured_speed import compare_speed_log, load_speed_log
+from src.core.synthetic_log import SyntheticOptions, generate_synthetic_log, save_synthetic_log
+from src.core.trajectory import scurve_profile
 from src.core.vibration_analysis import analyse_signal, load_csv_signal, load_wav_signal
 from src.ui.document_reader import read_document
 
@@ -17,6 +22,7 @@ def test_design_candidates_are_recomputed_and_fit_selected_motor():
     request = DesignRequest(30, 2, 1000, 1000, 0.8, (7.5, 11, 15, 18.5, 22))
     report = explore_designs(request)
     assert report["tested_cases"] == 81
+    assert len(report["all_cases"]) == 81
     assert report["feasible_count"] + report["rejected_count"] == 81
     assert report["holdout_max_error_pct"] >= report["holdout_mean_error_pct"] >= 0
     assert len(report["top"]) == 3
@@ -28,6 +34,88 @@ def test_design_candidates_are_recomputed_and_fit_selected_motor():
             row["selected_motor_kw"] >= request.power_margin * row["required_peak_kw"]
         )
         assert row["max_static_tension_n_per_rope"] > 0
+
+
+def test_goal_search_only_uses_sampled_feasible_models():
+    report = explore_designs(DesignRequest(30, 2, 1000, 1000, 0.8, (7.5, 11, 15, 18.5, 22)))
+    target = min(row["required_peak_kw"] for row in report["all_cases"] if row["selected_motor_kw"])
+    rows = candidates_under_peak(report, target + 1e-8)
+    assert rows and all(row["required_peak_kw"] <= target + 1e-8 for row in rows)
+    assert rows == sorted(rows, key=lambda row: (row["balance_pct"], row["selected_motor_kw"], row["ropes"]))
+    with pytest.raises(CalculationInputError):
+        candidates_under_peak(report, math.nan)
+
+
+def test_encoder_speed_overlay_interpolation_and_boundaries(tmp_path):
+    profile = scurve_profile(30, 2, 1, 0.8, 1000, step=0.2)
+    log = tmp_path / "encoder.txt"
+    log.write_text("time_s,speed_m_s\n" + "".join(
+        f"{sample[0]},{sample[2]}\n" for sample in profile["samples"]
+    ), encoding="utf-8")
+    result = compare_speed_log(profile, load_speed_log(log))
+    assert result["rmse_m_s"] == pytest.approx(0, abs=1e-10)
+    assert result["max_error_m_s"] == pytest.approx(0, abs=1e-10)
+    log.write_text("time_s,speed_m_s\n0,0\n0,1\n", encoding="utf-8")
+    with pytest.raises(CalculationInputError):
+        load_speed_log(log)
+    with pytest.raises(CalculationInputError):
+        compare_speed_log(profile, [(0, 0), (1, 1)])
+
+
+def test_synthetic_log_is_reproducible_labelled_and_round_trips(tmp_path):
+    profile = scurve_profile(8, 2, 1, 0.8, 1000)
+    options = SyntheticOptions(seed=7, delay_s=0.02)
+    first = generate_synthetic_log(profile, options)
+    assert first == generate_synthetic_log(profile, options)
+    assert first != generate_synthetic_log(profile, SyntheticOptions(seed=8))
+    assert all(row["source"] == "SYNTHETIC_DEMO_NOT_MEASURED" for row in first)
+    assert all(row["speed_m_s"] >= 0 for row in first)
+    output = tmp_path / "synthetic.csv"
+    assert save_synthetic_log(output, profile, options) == len(first)
+    assert len(load_speed_log(output)) == len(first)
+    assert compare_speed_log(profile, load_speed_log(output))["rmse_m_s"] > 0
+    with pytest.raises(CalculationInputError):
+        SyntheticOptions(joint_spacing_m=0)
+
+
+def test_speed_log_rejects_corruption_and_preserves_interpolated_error(tmp_path):
+    profile = scurve_profile(8, 2, 1, 0.8, 1000)
+    log = tmp_path / "encoder.csv"
+    log.write_text("time_s,wrong_unit\n0,0\n1,1\n", encoding="utf-8")
+    with pytest.raises(CalculationInputError, match="머리글"):
+        load_speed_log(log)
+    log.write_text("time_s,speed_m_s\n0,0\n1,nan\n", encoding="utf-8")
+    with pytest.raises(CalculationInputError, match="시간"):
+        load_speed_log(log)
+    log.write_text("time_s,speed_m_s\n0,0\n1,abc\n", encoding="utf-8")
+    with pytest.raises(CalculationInputError, match="숫자"):
+        load_speed_log(log)
+    log.write_text("time_s,speed_m_s\n0,0\n", encoding="utf-8")
+    with pytest.raises(CalculationInputError, match="두 개"):
+        load_speed_log(log)
+    log.write_text("time_s,speed_m_s\n" + "0,0\n" * 1_300_000, encoding="utf-8")
+    with pytest.raises(CalculationInputError, match="5 MB"):
+        load_speed_log(log)
+    measured = [(sample[0], sample[2] + 0.1) for sample in profile["samples"]]
+    result = compare_speed_log(profile, measured)
+    assert result["rmse_m_s"] == pytest.approx(0.1, abs=1e-10)
+    assert result["max_error_m_s"] == pytest.approx(0.1, abs=1e-10)
+
+
+def test_component_spec_needs_provenance_and_physical_units(tmp_path):
+    spec = {"maker": "사용자 입력", "model": "A", "source": "승인 도면 2쪽",
+            "rope_kg_m": 0.8, "sheave_radius_m": 0.4,
+            "motor_inertia_kg_m2": 2, "motor_options_kw": [11, 15]}
+    file = tmp_path / "parts.json"
+    file.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    assert load_component_spec(file) == ComponentSpec(
+        "사용자 입력", "A", "승인 도면 2쪽", 0.8, 0.4, 2, (11, 15)
+    )
+    for invalid in ({**spec, "source": ""}, {**spec, "rope_kg_m": -1},
+                    {**spec, "motor_options_kw": [True]}, {**spec, "unknown": 7}):
+        file.write_text(json.dumps(invalid, ensure_ascii=False), encoding="utf-8")
+        with pytest.raises(CalculationInputError):
+            load_component_spec(file)
 
 
 def test_design_rejects_unusable_ratings_and_impossible_cycle():

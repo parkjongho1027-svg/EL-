@@ -4,5 +4,5 @@ import sys
 
 
 def test_storage_import_does_not_load_tk():
-    script = "import storage,sys; assert 'tkinter' not in sys.modules"
+    script = "import sys; from src.persistence import storage; assert 'tkinter' not in sys.modules"
     subprocess.run([sys.executable, '-c', script], check=True, timeout=10)

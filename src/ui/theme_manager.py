@@ -1,21 +1,25 @@
 """Tk/ttk 테마와 글꼴 크기 관리."""
+
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
-from app_config import BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
+from src.config.constants import BUTTON_BG, BUTTON_ACTIVE_BG, BUTTON_TEXT
 from src.config.themes import THEMES
 
 
 def _is_sky_button(widget):
     # 호출 시점에만 가져와 공통 위젯과 테마의 순환 import를 피한다.
-    from ui_components import SkyButton
+    from src.ui.ui_components import SkyButton
+
     return isinstance(widget, SkyButton)
+
 
 def get_theme(widget):
     """위젯이 속한 창의 현재 테마 이름과 색상표를 반환합니다."""
     window = widget.winfo_toplevel()
     mode = getattr(window, "_ui_theme", "light")
     return mode, THEMES[mode]
+
 
 def apply_theme(widget, mode):
     """현재 창과 그 안의 모든 Tk 위젯에 선택한 테마를 적용합니다."""
@@ -40,7 +44,7 @@ def apply_theme(widget, mode):
                 highlightcolor=colors["accent"],
                 highlightthickness=1,
                 bd=1,
-                relief="solid"
+                relief="solid",
             )
         elif isinstance(widget, tk.Frame):
             role = getattr(widget, "_theme_role", "")
@@ -71,32 +75,42 @@ def apply_theme(widget, mode):
             widget.configure(bg=colors["canvas"])
         elif isinstance(widget, tk.Text):
             error_color = "#ff6b6b" if mode == "dark" else "red"
-            widget.configure(bg=colors["result"],
-                             fg=error_color if getattr(widget, "_result_error", False)
-                                else colors["text"],
-                             insertbackground=colors["text"],
-                             selectbackground=colors["selection_bg"],
-                             selectforeground=colors["selection_fg"],
-                             highlightbackground=colors["border"],
-                             highlightcolor=colors["accent"],
-                             highlightthickness=1)
+            widget.configure(
+                bg=colors["result"],
+                fg=error_color
+                if getattr(widget, "_result_error", False)
+                else colors["text"],
+                insertbackground=colors["text"],
+                selectbackground=colors["selection_bg"],
+                selectforeground=colors["selection_fg"],
+                highlightbackground=colors["border"],
+                highlightcolor=colors["accent"],
+                highlightthickness=1,
+            )
         elif isinstance(widget, tk.Entry):
-            widget.configure(bg=colors["entry"], fg=colors["text"],
-                             insertbackground=colors["text"],
-                             selectbackground=colors["selection_bg"],
-                             selectforeground=colors["selection_fg"],
-                             disabledbackground=colors["disabled_entry"],
-                             disabledforeground=colors["text"],
-                             highlightbackground=colors["border"],
-                             highlightcolor=colors["accent"],
-                             highlightthickness=1,
-                             relief="flat")
+            widget.configure(
+                bg=colors["entry"],
+                fg=colors["text"],
+                insertbackground=colors["text"],
+                selectbackground=colors["selection_bg"],
+                selectforeground=colors["selection_fg"],
+                disabledbackground=colors["disabled_entry"],
+                disabledforeground=colors["text"],
+                highlightbackground=colors["border"],
+                highlightcolor=colors["accent"],
+                highlightthickness=1,
+                relief="flat",
+            )
         elif isinstance(widget, tk.Listbox):
-            widget.configure(bg=colors["entry"], fg=colors["text"],
-                             selectbackground=colors["selection_bg"],
-                             selectforeground=colors["selection_fg"],
-                             highlightbackground=colors["border"],
-                             highlightcolor=colors["accent"], highlightthickness=1)
+            widget.configure(
+                bg=colors["entry"],
+                fg=colors["text"],
+                selectbackground=colors["selection_bg"],
+                selectforeground=colors["selection_fg"],
+                highlightbackground=colors["border"],
+                highlightcolor=colors["accent"],
+                highlightthickness=1,
+            )
         elif isinstance(widget, tk.Checkbutton):
             parent_bg = colors["surface"]
             try:
@@ -104,9 +118,12 @@ def apply_theme(widget, mode):
             except (tk.TclError, AttributeError):
                 pass
             widget.configure(
-                bg=parent_bg, fg=colors["text"], activebackground=parent_bg,
-                activeforeground=colors["text"], selectcolor=colors["entry"],
-                highlightthickness=0
+                bg=parent_bg,
+                fg=colors["text"],
+                activebackground=parent_bg,
+                activeforeground=colors["text"],
+                selectcolor=colors["entry"],
+                highlightthickness=0,
             )
         elif isinstance(widget, tk.Button):
             # 버튼 색상은 용도와 관계없이 한 가지 디자인으로 통일합니다.
@@ -118,18 +135,19 @@ def apply_theme(widget, mode):
                     fg="#ffffff",
                     activebackground=colors["button_active"],
                     activeforeground="#ffffff",
-                    disabledforeground="#ffffff"
+                    disabledforeground="#ffffff",
                 )
                 try:
                     # highlightbackground가 포커스가 없을 때도 파란 선을 그립니다.
                     # highlightcolor는 키보드 포커스를 받았을 때 같은 계열의
                     # 밝은 파랑으로 표시하여 테두리가 회색으로 바뀌지 않게 합니다.
                     widget.configure(
-                        relief="flat", bd=0,
+                        relief="flat",
+                        bd=0,
                         highlightthickness=2,
                         highlightbackground=colors["border"],
                         highlightcolor=colors["accent"],
-                        takefocus=True
+                        takefocus=True,
                     )
                 except tk.TclError:
                     pass
@@ -139,7 +157,7 @@ def apply_theme(widget, mode):
                     fg=BUTTON_TEXT,
                     activebackground=BUTTON_ACTIVE_BG,
                     activeforeground=BUTTON_TEXT,
-                    disabledforeground="#607078"
+                    disabledforeground="#607078",
                 )
                 try:
                     widget.configure(relief="flat", bd=0, highlightthickness=0)
@@ -160,13 +178,16 @@ def apply_theme(widget, mode):
                 widget.configure(bg=colors["subtle"], fg=colors["text"])
             elif role == "formula":
                 widget.configure(
-                    bg=colors["surface"], fg=colors["text"],
+                    bg=colors["surface"],
+                    fg=colors["text"],
                     highlightbackground=colors["border"],
                     highlightcolor=colors["accent"],
                 )
             else:
-                widget.configure(bg=parent_bg,
-                                 fg=colors["muted"] if role == "muted" else colors["text"])
+                widget.configure(
+                    bg=parent_bg,
+                    fg=colors["muted"] if role == "muted" else colors["text"],
+                )
     except tk.TclError:
         pass
 
@@ -179,6 +200,7 @@ def apply_theme(widget, mode):
 
     for child in widget.winfo_children():
         apply_theme(child, mode)
+
 
 def style_combobox_popdown(combobox):
     """펼쳐진 콤보박스 목록에 현재 화면 모드의 색상을 직접 적용합니다.
@@ -196,18 +218,27 @@ def style_combobox_popdown(combobox):
         popdown = combobox.tk.call("ttk::combobox::PopdownWindow", combobox._w)
         listbox = f"{popdown}.f.l"
         combobox.tk.call(
-            listbox, "configure",
-            "-background", popup_bg,
-            "-foreground", popup_fg,
-            "-selectbackground", popup_select_bg,
-            "-selectforeground", popup_select_fg,
-            "-highlightbackground", colors["accent"],
-            "-highlightcolor", colors["accent"],
-            "-highlightthickness", 1,
+            listbox,
+            "configure",
+            "-background",
+            popup_bg,
+            "-foreground",
+            popup_fg,
+            "-selectbackground",
+            popup_select_bg,
+            "-selectforeground",
+            popup_select_fg,
+            "-highlightbackground",
+            colors["accent"],
+            "-highlightcolor",
+            colors["accent"],
+            "-highlightthickness",
+            1,
         )
     except tk.TclError:
         # Tk 버전에 따라 내부 목록 경로가 다르면 옵션 데이터베이스 설정을 사용합니다.
         pass
+
 
 def bind_combobox_popdown_theme(combobox):
     """목록을 열 때마다 현재 테마를 적용하도록 한 번만 연결합니다."""
@@ -221,6 +252,7 @@ def bind_combobox_popdown_theme(combobox):
     combobox.bind("<Button-1>", restyle_after_open, add="+")
     combobox.bind("<Alt-Down>", restyle_after_open, add="+")
     combobox._popdown_theme_bound = True
+
 
 def configure_ttk_theme(root, mode):
     """Notebook 탭·콤보박스·스크롤바처럼 ttk가 그리는 위젯의 색을 바꿉니다."""
@@ -244,52 +276,84 @@ def configure_ttk_theme(root, mode):
             style.theme_use("clam")
 
         style.configure(
-            "TNotebook", background=colors["background"], borderwidth=1,
-            bordercolor=colors["border"], lightcolor=colors["border"],
-            darkcolor=colors["border"]
+            "TNotebook",
+            background=colors["background"],
+            borderwidth=1,
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
         )
         style.configure(
-            "TNotebook.Tab", font=("맑은 고딕", 11),
-            background=colors["tab"], foreground=colors["text"], padding=(10, 5),
-            bordercolor=colors["border"], lightcolor=colors["border"],
-            darkcolor=colors["border"]
+            "TNotebook.Tab",
+            font=("맑은 고딕", 11),
+            background=colors["tab"],
+            foreground=colors["text"],
+            padding=(10, 5),
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
         )
         style.map(
             "TNotebook.Tab",
-            background=[("selected", colors["tab_selected"]), ("active", colors["tab_selected"])],
-            foreground=[("selected", colors["text"]), ("active", colors["text"])]
+            background=[
+                ("selected", colors["tab_selected"]),
+                ("active", colors["tab_selected"]),
+            ],
+            foreground=[("selected", colors["text"]), ("active", colors["text"])],
         )
         style.configure(
-            "TCombobox", fieldbackground=colors["entry"], background=colors["button"],
-            foreground=colors["text"], arrowcolor=colors["accent"],
-            bordercolor=colors["border"], lightcolor=colors["border"],
-            darkcolor=colors["border"]
+            "TCombobox",
+            fieldbackground=colors["entry"],
+            background=colors["button"],
+            foreground=colors["text"],
+            arrowcolor=colors["accent"],
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
         )
         style.map(
-            "TCombobox", fieldbackground=[("readonly", colors["entry"])],
+            "TCombobox",
+            fieldbackground=[("readonly", colors["entry"])],
             foreground=[("readonly", colors["text"])],
             selectbackground=[("readonly", colors["selection_bg"])],
-            selectforeground=[("readonly", colors["selection_fg"])]
+            selectforeground=[("readonly", colors["selection_fg"])],
         )
-        style.configure("Horizontal.TScrollbar", background=colors["button"],
-                        troughcolor=colors["canvas"], arrowcolor=colors["text"])
-        style.configure("Vertical.TScrollbar", background=colors["button"],
-                        troughcolor=colors["canvas"], arrowcolor=colors["text"])
         style.configure(
-            "Project.Treeview", font=("맑은 고딕", 10), rowheight=28,
-            background=colors["entry"], fieldbackground=colors["entry"],
-            foreground=colors["text"], bordercolor=colors["border"],
-            borderwidth=1, relief="solid"
+            "Horizontal.TScrollbar",
+            background=colors["button"],
+            troughcolor=colors["canvas"],
+            arrowcolor=colors["text"],
+        )
+        style.configure(
+            "Vertical.TScrollbar",
+            background=colors["button"],
+            troughcolor=colors["canvas"],
+            arrowcolor=colors["text"],
+        )
+        style.configure(
+            "Project.Treeview",
+            font=("맑은 고딕", 10),
+            rowheight=28,
+            background=colors["entry"],
+            fieldbackground=colors["entry"],
+            foreground=colors["text"],
+            bordercolor=colors["border"],
+            borderwidth=1,
+            relief="solid",
         )
         style.map(
             "Project.Treeview",
             background=[("selected", colors["selection_bg"])],
-            foreground=[("selected", colors["selection_fg"])]
+            foreground=[("selected", colors["selection_fg"])],
         )
         style.configure(
-            "Project.Treeview.Heading", font=("맑은 고딕", 9, "bold"),
-            background=colors["header_1"], foreground=colors["header_1_text"],
-            bordercolor=colors["border"], padding=(8, 7), relief="flat"
+            "Project.Treeview.Heading",
+            font=("맑은 고딕", 9, "bold"),
+            background=colors["header_1"],
+            foreground=colors["header_1_text"],
+            bordercolor=colors["border"],
+            padding=(8, 7),
+            relief="flat",
         )
         style.map(
             "Project.Treeview.Heading",
@@ -311,6 +375,7 @@ def configure_ttk_theme(root, mode):
         # 지원하지 않는 ttk 색상 옵션이 있어도 기본 스타일로 계속 실행합니다.
         pass
 
+
 def apply_font_scale(widget, selected_size):
     """명시된 글꼴의 굵기·비율을 보존하면서 기준 크기(10)를 조절합니다."""
     target_delta = int(selected_size) - 10
@@ -318,11 +383,18 @@ def apply_font_scale(widget, selected_size):
         target = widget._button if _is_sky_button(widget) else widget
         if "font" in target.keys():
             if not hasattr(target, "_base_font_actual"):
-                target._base_font_actual = tkfont.Font(font=target.cget("font")).actual()
+                target._base_font_actual = tkfont.Font(
+                    font=target.cget("font")
+                ).actual()
             base = target._base_font_actual
             size = max(7, abs(int(base.get("size", 10))) + target_delta)
-            target.configure(font=(base.get("family", "맑은 고딕"), size,
-                                   base.get("weight", "normal")))
+            target.configure(
+                font=(
+                    base.get("family", "맑은 고딕"),
+                    size,
+                    base.get("weight", "normal"),
+                )
+            )
     except (tk.TclError, ValueError, TypeError):
         pass
     if not _is_sky_button(widget):

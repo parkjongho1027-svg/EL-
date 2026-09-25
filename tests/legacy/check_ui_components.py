@@ -1,5 +1,5 @@
 """화면 없이 입력 문자와 다이얼로그 부모 선택 경계를 검사."""
-from ui_components import numeric_input_allowed, resolve_dialog_parent, set_dialog_root
+from src.ui.ui_components import numeric_input_allowed, resolve_dialog_parent, set_dialog_root
 
 assert numeric_input_allowed('50*1.1*6')
 assert numeric_input_allowed('1.2e-3')

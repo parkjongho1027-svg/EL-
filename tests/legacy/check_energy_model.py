@@ -3,7 +3,7 @@ import csv
 import math
 import tempfile
 from pathlib import Path
-from energy_model import compare_trips, estimate_trip, read_measurement
+from src.core.energy_model import compare_trips, estimate_trip, read_measurement
 
 SHARED=dict(distance=30,car_mass=1000,load_mass=500,counterweight_mass=1500,
             equivalent_extra_mass=300,resistance=100,direction='상승',

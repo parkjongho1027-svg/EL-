@@ -6,9 +6,9 @@ import tkinter as tk
 from tkinter import ttk
 
 from src.core.calculators import calculate_brake_values
-from ui_components import attach_numeric_validation
-from theme_manager import bind_combobox_popdown_theme
-from utils import parse_number, require_calculation, calculate_safely
+from src.ui.ui_components import attach_numeric_validation
+from src.ui.theme_manager import bind_combobox_popdown_theme
+from src.common.utils import parse_number, require_calculation, calculate_safely
 
 
 @dataclass(frozen=True)

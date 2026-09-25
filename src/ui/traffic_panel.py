@@ -6,7 +6,7 @@ import math
 import tkinter as tk
 from tkinter import ttk
 
-from app_config import FORMULA_VERSION
+from src.config.constants import FORMULA_VERSION
 from src.core.calculators import (
     calculate_traffic_values,
     traffic_pdf_reference,
@@ -14,9 +14,9 @@ from src.core.calculators import (
 )
 from src.ui.engineering_charts import show_capacity
 from src.ui.graph_workspace import manage_graphs
-from theme_manager import bind_combobox_popdown_theme
-from ui_components import SkyButton, attach_numeric_validation, messagebox
-from utils import parse_number, require_calculation, calculate_safely, ensure_positive
+from src.ui.theme_manager import bind_combobox_popdown_theme
+from src.ui.ui_components import SkyButton, attach_numeric_validation, messagebox
+from src.common.utils import parse_number, require_calculation, calculate_safely, ensure_positive
 
 
 @dataclass(frozen=True)

@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
-        run: python -m pip install -r requirements-dev.txt
+        run: python -m pip install -r requirements-dev-lock.txt
       - name: Shared lint and calculation checks
         run: sh scripts/verify.sh
   windows-build:
@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: '3.14'
       - name: Install builder and tests
-        run: python -m pip install -r requirements-dev.txt pyinstaller pillow
+        run: python -m pip install -r requirements-dev-lock.txt pyinstaller==6.22.3
       - name: Build desktop app
         run: pyinstaller --noconfirm --onefile --windowed --name ElevatorCalculator main.py
       - name: Smoke test packaged calculation imports

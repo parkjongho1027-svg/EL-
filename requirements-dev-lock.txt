@@ -1,0 +1,11 @@
+# Validated dependency set for Python 3.12/3.14. Refresh and run scripts/verify.sh
+# before changing versions. Platform-specific wheel hashes are not pinned.
+Pillow==12.3.0
+coverage==7.16.1
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pypdf==6.19.0
+pytest==9.1.1
+pytest-cov==7.1.0
+ruff==0.16.9

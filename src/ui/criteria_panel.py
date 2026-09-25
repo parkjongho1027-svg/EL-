@@ -17,8 +17,8 @@ from src.core.elevator_review_engine import (
     evaluate_traction_case,
     review_guidance,
 )
-from ui_components import SkyButton, attach_numeric_validation
-from utils import parse_number
+from src.ui.ui_components import SkyButton, attach_numeric_validation
+from src.common.utils import parse_number
 
 
 @dataclass(frozen=True)

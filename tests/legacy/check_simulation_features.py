@@ -1,9 +1,9 @@
 """기록 내구성과 동일 렌더러의 그래프·PNG 크기 확인."""
 import tempfile
 from pathlib import Path
-import storage
-from plot_render import render_plot
-from elevator_review_engine import scurve_profile
+from src.persistence import storage
+from src.ui.plot_render import render_plot
+from src.core.elevator_review_engine import scurve_profile
 
 with tempfile.TemporaryDirectory() as tmp:
     original=storage.get_data_file_path

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-import storage
+from src.persistence import storage
 
 
 @pytest.mark.parametrize('payload', [[],{'calculators':['broken']},

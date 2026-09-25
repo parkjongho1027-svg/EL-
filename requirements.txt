@@ -1,2 +1,2 @@
 # Pillow is optional: enables smoother on-screen rendering.
-pypdf>=6,<8
+pypdf==6.19.0

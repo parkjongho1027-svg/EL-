@@ -1,6 +1,6 @@
 """여섯 화면의 프로젝트 입력값 동기화. Tk 객체는 전달하지 않는다."""
 import copy
-from utils import clean_number_text, parse_number
+from src.common.utils import clean_number_text, parse_number
 
 
 def _state_number(state, key):
