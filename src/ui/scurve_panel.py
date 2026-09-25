@@ -8,6 +8,7 @@ from tkinter import filedialog, ttk
 
 from src.core.elevator_review_engine import scurve_profile
 from src.core.energy_model import compare_trips, read_measurement
+from src.ui.engineering_tools_dialog import open_engineering_tools
 from src.ui.graph_workspace import (
     manage_graphs,
     save_current_graph,
@@ -72,12 +73,21 @@ class SCurvePanel(tk.Frame):
         energy = tk.Frame(self.mode_tabs, bg="white")
         self.mode_tabs.add(basic, text="기계동력 곡선")
         self.mode_tabs.add(energy, text="전기에너지 비교")
+        heading = tk.Frame(basic, bg="white")
+        heading.pack(fill="x", padx=10, pady=8)
         tk.Label(
-            basic,
+            heading,
             text="대칭 S-Curve: 일정 저크로 가감속하는 단순화 운행 모델",
             bg="white",
             font=("맑은 고딕", 11, "bold"),
-        ).pack(anchor="w", padx=10, pady=8)
+        ).pack(side="left")
+        SkyButton(
+            heading,
+            text="공학 데이터 도구",
+            command=lambda: open_engineering_tools(self),
+            font=("맑은 고딕", 9),
+            width=14,
+        ).pack(side="right")
         for key, label, default in (
             ("distance", "운행거리 m", "30"),
             ("vmax", "설정 최고속도 m/s", "2"),
