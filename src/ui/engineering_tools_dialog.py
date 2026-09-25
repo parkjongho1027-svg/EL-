@@ -14,11 +14,11 @@ from src.core.component_spec import load_component_spec
 from src.core.measured_speed import compare_speed_log, load_speed_log
 from src.core.synthetic_log import SyntheticOptions, save_synthetic_log
 from src.core.trajectory import scurve_profile
-from src.core.hoistway import HoistwayTrip, trip_phase
 from src.ui.document_reader import read_document
 from src.core.errors import CalculationInputError
 from src.core.vibration_analysis import load_csv_signal, load_wav_signal
-from src.ui.theme_manager import apply_theme, get_theme
+from src.ui.theme_manager import apply_theme
+from src.ui.hoistway_view import HoistwayView
 from src.ui.ui_components import SkyButton, messagebox
 
 
@@ -26,8 +26,8 @@ def open_engineering_tools(panel):
     root = panel.winfo_toplevel()
     window = tk.Toplevel(panel)
     window.title("공학 데이터 도구 — 검증용")
-    window.geometry("900x680")
-    window.minsize(900, 600)
+    window.geometry("1140x800")
+    window.minsize(980, 680)
     window.transient(root)
     window._ui_theme = getattr(root, "_ui_theme", "light")
     notebook = ttk.Notebook(window)
@@ -701,166 +701,17 @@ def open_engineering_tools(panel):
     synthetic_button = SkyButton(synthetic_controls, text="합성 CSV 생성·비교", command=make_synthetic, width=22)
     synthetic_button.pack(side="left", padx=9)
 
-    note(hoistway, "1:1 로핑의 위치 도식입니다. 기계동력 탭의 운행거리를 1층~최상층 전체 행정으로 보고, 선택한 층간 거리만큼 다시 계산합니다. 층고는 동일하다고 가정하며 도식의 카·균형추 크기는 실제 치수가 아닙니다. 로프 슬립·간섭·완충기·오버슈트를 판정하지 않습니다.")
-    floor_controls = tk.Frame(hoistway)
-    floor_controls.pack(fill="x", padx=14, pady=3)
-    floor_count = tk.StringVar(value="8")
-    start_floor = tk.StringVar(value="1")
-    end_floor = tk.StringVar(value="8")
-    for caption, variable in (("전체 층수", floor_count), ("출발층", start_floor), ("도착층", end_floor)):
-        tk.Label(floor_controls, text=caption).pack(side="left", padx=(10, 4))
-        box = ttk.Combobox(floor_controls, textvariable=variable, width=6, state="readonly")
-        box["values"] = list(range(2, 101)) if variable is floor_count else list(range(1, 9))
-        box.pack(side="left")
-        if variable is floor_count:
-            count_box = box
-        elif variable is start_floor:
-            start_box = box
-        else:
-            end_box = box
-    hoist_controls = tk.Frame(hoistway)
-    hoist_controls.pack(fill="x", padx=12, pady=4)
-    hoist_canvas = tk.Canvas(hoistway, height=490, highlightthickness=1, bg="white")
-    hoist_canvas.pack(fill="both", expand=True, padx=12, pady=10)
-    phase_readout = tk.Label(hoistway, text="운행 단계: 출발", font=("맑은 고딕", 15, "bold"))
-    phase_readout.pack(fill="x", padx=12, pady=(0, 2))
-    hoist_status = tk.Label(hoistway, text="현재 기계동력 곡선 입력으로 위치를 계산하세요.")
-    hoist_status.pack(fill="x", padx=12, pady=6)
-    hoist_profile = {}
-    motion = {"playing": False, "after_id": None}
-    time_slider = tk.Scale(hoist_controls, orient="horizontal", resolution=0.05, length=460,
-                           label="운행 시간 (s)")
-    time_slider.pack(side="left", fill="x", expand=True, padx=8)
+    hoistway_view = HoistwayView(hoistway, panel, window)
+    hoistway_view.pack(fill="both", expand=True)
 
-    def redraw_hoistway(_event=None):
-        if not hoist_profile:
-            return
-        samples = hoist_profile["samples"]
-        t = float(time_slider.get())
-        index = min(len(samples) - 1, max(0, int(t / max(hoist_profile["duration_s"], 0.01) * (len(samples) - 1))))
-        while index + 1 < len(samples) and samples[index + 1][0] <= t:
-            index += 1
-        while index > 0 and samples[index][0] > t:
-            index -= 1
-        trip = hoist_profile["trip"]
-        car_pos, cw_pos = trip.position(samples[index][1])
-        hoist_canvas.delete("all")
-        palette = get_theme(hoist_canvas)[1]
-        ink = palette["text"]
-        width = max(500, hoist_canvas.winfo_width())
-        height = max(290, hoist_canvas.winfo_height())
-        top, bottom = 76, height - 48
-        cx = width / 2
-        car_x, cw_x = cx - 108, cx + 108
-        color_rail, color_rope = palette["border"], palette["muted"]
-        for x in (cx - 125, cx + 125):
-            hoist_canvas.create_rectangle(x - 35, top, x + 35, bottom, outline=color_rail, width=2)
-        height_span = bottom - top
-        def y_at(pos):
-            return bottom - height_span * min(trip.height_m, max(0.0, pos)) / trip.height_m
-        floor_step = max(1, (trip.floors - 1 + 11) // 12)
-        for floor in range(1, trip.floors + 1):
-            y = y_at((floor - 1) * trip.floor_height_m)
-            hoist_canvas.create_line(cx - 168, y, cx - 145, y, fill=color_rail)
-            if floor in (1, trip.floors, trip.start_floor, trip.end_floor) or (floor - 1) % floor_step == 0:
-                hoist_canvas.create_text(cx - 172, y, text=f"{floor}층", anchor="e", fill=ink)
-        car_y, cw_y = y_at(car_pos), y_at(cw_pos)
-        floor_pixel = height_span / (trip.floors - 1)
-        car_h = min(90, max(50, floor_pixel * 0.82))
-        cw_h = car_h * 1.1
-        sheave_y = top - 38
-        hoist_canvas.create_line(car_x, car_y - car_h / 2, car_x, sheave_y, fill=color_rope, width=2)
-        hoist_canvas.create_line(cw_x, cw_y - cw_h / 2, cw_x, sheave_y, fill=color_rope, width=2)
-        hoist_canvas.create_line(car_x, sheave_y, cw_x, sheave_y, fill=color_rope, width=2)
-        for x in (car_x, cw_x):
-            hoist_canvas.create_oval(x - 13, sheave_y - 13, x + 13, sheave_y + 13, fill="white", outline=color_rope, width=2)
-        hoist_canvas.create_rectangle(car_x - 23, car_y - car_h / 2, car_x + 23, car_y + car_h / 2,
-                                      fill="#2879cc", outline="#164e87", width=2)
-        hoist_canvas.create_line(car_x - 20, car_y - car_h / 2 + 10, car_x + 20, car_y - car_h / 2 + 10, fill="white")
-        hoist_canvas.create_text(car_x, car_y, text="카", fill="white")
-        hoist_canvas.create_rectangle(cw_x - 18, cw_y - cw_h / 2, cw_x + 18, cw_y + cw_h / 2,
-                                      fill="#d46a17", outline="#9a470d", width=2)
-        hoist_canvas.create_text(cw_x, cw_y, text="균형추", fill="white")
-        hoist_canvas.create_text(car_x, bottom + 24, text=f"카 {car_pos:.2f} m", fill=ink)
-        hoist_canvas.create_text(cw_x, bottom + 24, text=f"균형추 {cw_pos:.2f} m", fill=ink)
-        current_floor = 1 + car_pos / trip.floor_height_m
-        phase_readout.configure(text=f"운행 단계: {trip_phase(samples, index)}")
-        hoist_status.configure(text=f"{trip.start_floor}층 → {trip.end_floor}층 ({'상승' if trip.direction > 0 else '하강'}) · 현재 약 {current_floor:.1f}층 · {samples[index][0]:.2f}/{hoist_profile['duration_s']:.2f} s")
+    def preview_hoistway(_event=None):
+        if notebook.select() == str(hoistway) and hoistway_view.profile is None:
+            hoistway_view.calculate(show_errors=False)
 
-    time_slider.configure(command=lambda _value: redraw_hoistway())
-    hoist_canvas.bind("<Configure>", redraw_hoistway)
-
-    def calculate_hoistway():
-        try:
-            values = [float(panel.entries[key].get()) for key in
-                      ("distance", "vmax", "amax", "jerk", "mass", "force")]
-            trip = HoistwayTrip(int(floor_count.get()), int(start_floor.get()),
-                                int(end_floor.get()), values[0])
-            profile = scurve_profile(trip.distance_m, *values[1:])
-        except (ValueError, CalculationInputError) as error:
-            messagebox.showerror("승강로 위치", f"기계동력 입력을 확인하세요: {error}", parent=window)
-            return
-        if motion["after_id"]:
-            window.after_cancel(motion["after_id"])
-            motion["after_id"] = None
-        motion["playing"] = False
-        hoist_profile.clear()
-        hoist_profile.update(profile, trip=trip)
-        time_slider.configure(to=profile["duration_s"])
-        time_slider.set(0)
-        redraw_hoistway()
-
-    def tick_hoistway():
-        motion["after_id"] = None
-        if not motion["playing"] or not window.winfo_exists():
-            return
-        next_time = float(time_slider.get()) + 0.08
-        if next_time >= hoist_profile["duration_s"]:
-            time_slider.set(hoist_profile["duration_s"])
-            motion["playing"] = False
-            return
-        time_slider.set(next_time)
-        motion["after_id"] = window.after(80, tick_hoistway)
-
-    def toggle_hoistway():
-        if not hoist_profile:
-            calculate_hoistway()
-        if not hoist_profile:
-            return
-        motion["playing"] = not motion["playing"]
-        if motion["playing"]:
-            if float(time_slider.get()) >= hoist_profile["duration_s"]:
-                time_slider.set(0)
-            tick_hoistway()
-        elif motion["after_id"]:
-            window.after_cancel(motion["after_id"])
-            motion["after_id"] = None
-
-    SkyButton(hoist_controls, text="위치 갱신", command=calculate_hoistway, width=13).pack(side="left", padx=4)
-    SkyButton(hoist_controls, text="재생 / 정지", command=toggle_hoistway, width=13).pack(side="left", padx=4)
-
-    def changed_floors(_event=None):
-        try:
-            count = int(floor_count.get())
-        except ValueError:
-            return
-        options = list(range(1, count + 1))
-        start_box["values"] = options
-        end_box["values"] = options
-        if int(start_floor.get()) > count:
-            start_floor.set("1")
-        if int(end_floor.get()) > count:
-            end_floor.set(str(count))
-        calculate_hoistway()
-
-    count_box.bind("<<ComboboxSelected>>", changed_floors)
-    start_box.bind("<<ComboboxSelected>>", lambda _event: calculate_hoistway())
-    end_box.bind("<<ComboboxSelected>>", lambda _event: calculate_hoistway())
+    notebook.bind("<<NotebookTabChanged>>", preview_hoistway, add="+")
 
     def stop_hoistway():
-        motion["playing"] = False
-        if motion["after_id"]:
-            window.after_cancel(motion["after_id"])
+        hoistway_view.stop()
         window.destroy()
 
     window.protocol("WM_DELETE_WINDOW", stop_hoistway)
