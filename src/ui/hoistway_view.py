@@ -24,7 +24,6 @@ class HoistwayView(tk.Frame):
         self.floor_count = tk.StringVar(value="10")
         self.start_floor = tk.StringVar(value="1")
         self.end_floor = tk.StringVar(value="10")
-        self.compact_view = tk.BooleanVar(value=False)
 
         left = tk.Frame(self, width=315)
         left.pack(side="left", fill="y", padx=(12, 5), pady=8)
@@ -46,38 +45,52 @@ class HoistwayView(tk.Frame):
         buttons.pack(fill="x", pady=6)
         SkyButton(buttons, text="위치 갱신", command=self.calculate, width=12).pack(side="left", padx=(0, 5))
         SkyButton(buttons, text="재생 / 정지", command=self.toggle, width=12).pack(side="left")
-        compact_row = tk.Frame(left)
-        compact_row.pack(fill="x", pady=(0, 6))
-        tk.Checkbutton(compact_row, text="축소 시뮬레이션", variable=self.compact_view,
-                       command=self.toggle_compact_view).pack(side="left")
-
         current = tk.LabelFrame(left, text="현재 상태", padx=9, pady=10)
         current.pack(fill="x", pady=(18, 8))
         self.phase_label = tk.Label(current, text="출발", anchor="w", font=("맑은 고딕", 18, "bold"))
         self.phase_label.pack(fill="x")
         self.phase_bar = tk.Frame(current)
-        self.phase_bar.pack(fill="x", pady=8)
+        self.phase_bar.pack(fill="x", pady=(8, 4))
         self.phase_labels = {}
-        for phase in ("Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"):
+        phases = ("Jerk", "일정가속", "가속라운드", "전속",
+                  "감속라운드", "일정감속", "착상부", "도착")
+        for number, phase in enumerate(phases):
             label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 8, "bold"))
-            label.pack(side="left", padx=2)
+            label.grid(row=number // 4, column=number % 4, padx=3, pady=2, sticky="w")
             self.phase_labels[phase] = label
+        self.phase_description = tk.Label(current, text="", anchor="w",
+                                          justify="left", wraplength=270)
+        self.phase_description.pack(fill="x", pady=(5, 3))
         self.status_label = tk.Label(current, text="운행 경로를 선택하세요.", anchor="w",
                                      justify="left", wraplength=270)
         self.status_label.pack(fill="x", pady=(3, 0))
-        self.source_label = tk.Label(current, text="", anchor="w", justify="left",
-                                     wraplength=270, font=("맑은 고딕", 9))
-        self.source_label.pack(fill="x", pady=(8, 0))
+
+        source = tk.LabelFrame(left, text="시뮬레이션 입력 출처", padx=9, pady=8)
+        source.pack(fill="x", pady=(8, 6))
+        self.source_label = tk.Label(source, text="기계동력 곡선 탭의 입력값을 사용합니다.",
+                                     anchor="w", justify="left", wraplength=270,
+                                     font=("맑은 고딕", 9))
+        self.source_label.pack(fill="x")
         tk.Label(left, text="1:1 로핑 위치 도식입니다. 기계동력 입력의 거리를 전체 승강행정으로 보고 층고를 동일하게 나눕니다. 카와 균형추 크기는 실제 치수가 아니며 간섭·안전 검증에 사용할 수 없습니다.",
-                 anchor="nw", justify="left", wraplength=285).pack(fill="x", pady=(20, 0))
+                 anchor="nw", justify="left", wraplength=285).pack(fill="x", pady=(8, 0))
 
         tk.Label(right, text="승강로 위치 · 층 번호 클릭으로 이동", anchor="w",
                  font=("맑은 고딕", 11, "bold")).pack(fill="x", pady=(0, 5))
         chart = tk.Frame(right)
         chart.pack(fill="both", expand=True)
+
+        # 왼쪽은 층별 위치를 자세히 보는 일반 시뮬레이션이다.
         self.canvas = tk.Canvas(chart, highlightthickness=1, cursor="arrow")
         self.scrollbar = ttk.Scrollbar(chart, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        # 오른쪽 축소도는 전체 운행을 항상 한눈에 볼 수 있게 동시에 표시한다.
+        mini_frame = tk.LabelFrame(chart, text="전체 운행 축소도", padx=4, pady=4)
+        mini_frame.pack(side="right", fill="y", padx=(8, 0))
+        self.mini_canvas = tk.Canvas(mini_frame, width=190, highlightthickness=0)
+        self.mini_canvas.pack(fill="both", expand=True)
+        self.mini_canvas.bind("<Configure>", self.redraw)
+
         self.scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.bind("<Configure>", self.redraw)
@@ -127,11 +140,6 @@ class HoistwayView(tk.Frame):
         if 2 <= count <= 100:
             self.structure_key = None
 
-
-    def toggle_compact_view(self):
-        """일반 보기와 층 간격을 줄인 축소 시뮬레이션을 전환한다."""
-        self.structure_key = None
-        self.redraw()
 
     def stop(self):
         """재생 중인 시뮬레이션을 멈추고 예약된 화면 갱신을 취소한다."""
@@ -192,6 +200,8 @@ class HoistwayView(tk.Frame):
             self.stop()
             self.profile = None
             self.canvas.delete("all")
+            if hasattr(self, "mini_canvas"):
+                self.mini_canvas.delete("all")
             self.status_label.configure(text="기계동력 탭에서 운행 조건을 입력하세요.")
             if show_errors:
                 messagebox.showerror("승강로 위치", f"기계동력 입력을 확인하세요: {error}", parent=self.window)
@@ -272,6 +282,54 @@ class HoistwayView(tk.Frame):
             self.canvas.create_line(x + 35, geom.top_px - 12, x + 35, geom.floor_y(1) + 8,
                                     fill=line_color, width=2, tags="structure")
 
+    def draw_miniature(self, trip, traveled_m, palette):
+        """전체 승강행정을 한 화면에 축소해 카와 균형추 위치를 함께 보여준다."""
+        if not hasattr(self, "mini_canvas"):
+            return
+        canvas = self.mini_canvas
+        canvas.delete("all")
+        width = max(170, canvas.winfo_width())
+        height = max(360, canvas.winfo_height())
+        top, bottom = 62, height - 35
+        center = width / 2
+        car_x, cw_x = center - 30, center + 30
+
+        # 전체 행정을 고정된 세로 길이에 맞춰 표시한다.
+        car_height, counter_height = trip.position(traveled_m)
+        usable = max(1, bottom - top)
+        car_y = bottom - (car_height / trip.height_m) * usable
+        cw_y = bottom - (counter_height / trip.height_m) * usable
+
+        canvas.create_text(8, 8, anchor="nw",
+                           text=f"출발 {trip.start_floor}층\n도착 {trip.end_floor}층",
+                           fill=palette["text"], font=("맑은 고딕", 9, "bold"))
+
+        traction_y = 48
+        deflector_y = 55
+        canvas.create_line(car_x, traction_y, car_x, car_y - 18,
+                           fill=palette["muted"], width=2)
+        canvas.create_line(car_x, traction_y, cw_x, deflector_y,
+                           fill=palette["muted"], width=2)
+        canvas.create_line(cw_x, deflector_y, cw_x, cw_y - 20,
+                           fill=palette["muted"], width=2)
+        canvas.create_oval(car_x - 12, traction_y - 12, car_x + 12, traction_y + 12,
+                           fill=palette["surface"], outline=palette["text"], width=2)
+        canvas.create_oval(cw_x - 7, deflector_y - 7, cw_x + 7, deflector_y + 7,
+                           fill=palette["surface"], outline=palette["muted"], width=2)
+
+        canvas.create_line(car_x - 24, top, car_x - 24, bottom,
+                           fill=palette["border"], width=2)
+        canvas.create_line(cw_x + 24, top, cw_x + 24, bottom,
+                           fill=palette["border"], width=2)
+        canvas.create_rectangle(car_x - 15, car_y - 28, car_x + 15, car_y,
+                                fill="#2879cc", outline="#164e87", width=2)
+        canvas.create_text(car_x, car_y - 14, text="카", fill="white",
+                           font=("맑은 고딕", 9, "bold"))
+        canvas.create_rectangle(cw_x - 11, cw_y - 32, cw_x + 11, cw_y,
+                                fill="#d46a17", outline="#9a470d", width=2)
+        canvas.create_text(cw_x, cw_y - 16, text="추", fill="white",
+                           font=("맑은 고딕", 8, "bold"))
+
     def redraw(self, _event=None):
         """현재 시간에 맞춰 카·균형추·로프와 운행 상태를 화면에 갱신한다."""
         if not self.profile:
@@ -287,16 +345,13 @@ class HoistwayView(tk.Frame):
         while index > 0 and samples[index][0] > time:
             index -= 1
         trip = self.profile["trip"]
-        compact = getattr(self, "compact_view", None)
-        is_compact = bool(compact.get()) if compact is not None else False
-        geom = HoistwayGeometry(trip.floors, pitch_px=42 if is_compact else 68,
-                                top_px=155, bottom_px=70 if is_compact else 90)
+        geom = HoistwayGeometry(trip.floors, pitch_px=68, top_px=155, bottom_px=90)
         palette = get_theme(self.canvas)[1]
         width = max(500, self.canvas.winfo_width())
         self.draw_structure(trip, geom, width, palette)
         self.canvas.delete("moving")
         cx = width / 2
-        car_x, cw_x = cx - 58, cx + 58
+        car_x, cw_x = cx - 45, cx + 45
         car_y = geom.car_bottom_y(trip, samples[index][1])
         weight_y = geom.counterweight_bottom_y(trip, samples[index][1])
         # 1:1 로핑을 알아보기 쉽게 권상기 쉬브와 편향도르래를 떨어뜨려 표시한다.
@@ -336,6 +391,24 @@ class HoistwayView(tk.Frame):
         for name, label in self.phase_labels.items():
             label.configure(bg=palette["accent"] if name == phase else palette["surface"],
                             fg="white" if name == phase else palette["text"])
+
+        # 예전 화면처럼 현재 단계의 뜻을 바로 아래에서 짧게 설명한다.
+        descriptions = {
+            "Jerk": "Jerk: 가속도가 서서히 증가하는 출발 구간",
+            "일정가속": "일정가속: 설정한 가속도를 유지하는 구간",
+            "가속라운드": "가속라운드: 가속을 줄이며 전속 운전으로 넘어가는 구간",
+            "전속": "전속: 최고속도를 일정하게 유지하는 구간",
+            "감속라운드": "감속라운드: 감속을 시작하며 속도를 부드럽게 낮추는 구간",
+            "일정감속": "일정감속: 설정한 감속도를 유지하는 구간",
+            "착상부": "착상부: 감속을 완화하는 모델의 마지막 구간\n(정밀 착상 제어 아님)",
+            "도착": "도착: 선택한 목적층에 운행이 끝난 상태",
+        }
+        if hasattr(self, "phase_description"):
+            self.phase_description.configure(text=descriptions.get(phase, ""))
+
+        # 일반 시뮬레이션과 같은 시점의 전체 축소도를 오른쪽에 함께 표시한다.
+        self.draw_miniature(trip, samples[index][1], palette)
+
         car_height, _ = trip.position(samples[index][1])
         current = 1 + car_height / trip.floor_height_m
         velocity = samples[index][2]
