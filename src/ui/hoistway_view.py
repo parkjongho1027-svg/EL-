@@ -73,7 +73,7 @@ class HoistwayView(tk.Frame):
         SkyButton(buttons, text="재생 / 정지", command=self.toggle, width=12).pack(side="left")
         current = tk.LabelFrame(left, text="현재 상태", padx=9, pady=10)
         current.pack(fill="x", pady=(18, 8))
-        self.phase_label = tk.Label(current, text="출발", anchor="w", font=("맑은 고딕", 18, "bold"))
+        self.phase_label = tk.Label(current, text="출발", anchor="w", font=("맑은 고딕", 20, "bold"))
         self.phase_label.pack(fill="x")
         self.phase_bar = tk.Frame(current)
         self.phase_bar.pack(fill="x", pady=(8, 4))
@@ -81,15 +81,17 @@ class HoistwayView(tk.Frame):
         phases = ("Jerk", "일정가속", "가속라운드", "전속",
                   "감속라운드", "일정감속", "착상부", "도착")
         for number, phase in enumerate(phases):
-            label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 8, "bold"))
-            label.grid(row=number // 4, column=number % 4, padx=3, pady=2, sticky="w")
+            label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 10, "bold"))
+            label.grid(row=number // 4, column=number % 4, padx=3, pady=3, sticky="w")
             self.phase_labels[phase] = label
         self.phase_description = tk.Label(current, text="", anchor="w",
-                                          justify="left", wraplength=270)
-        self.phase_description.pack(fill="x", pady=(5, 3))
+                                          justify="left", wraplength=270,
+                                          font=("맑은 고딕", 10))
+        self.phase_description.pack(fill="x", pady=(6, 4))
         self.status_label = tk.Label(current, text="운행 경로를 선택하세요.", anchor="w",
-                                     justify="left", wraplength=270)
-        self.status_label.pack(fill="x", pady=(3, 0))
+                                     justify="left", wraplength=270,
+                                     font=("맑은 고딕", 10))
+        self.status_label.pack(fill="x", pady=(4, 0))
 
         source = tk.LabelFrame(left, text="시뮬레이션 입력 출처", padx=9, pady=8)
         source.pack(fill="x", pady=(8, 6))
