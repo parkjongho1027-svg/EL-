@@ -23,6 +23,7 @@ class HoistwayView(tk.Frame):
         self.floor_count = tk.StringVar(value="10")
         self.start_floor = tk.StringVar(value="1")
         self.end_floor = tk.StringVar(value="10")
+        self.compact_view = tk.BooleanVar(value=False)
 
         left = tk.Frame(self, width=315)
         left.pack(side="left", fill="y", padx=(12, 5), pady=8)
@@ -44,6 +45,10 @@ class HoistwayView(tk.Frame):
         buttons.pack(fill="x", pady=6)
         SkyButton(buttons, text="위치 갱신", command=self.calculate, width=12).pack(side="left", padx=(0, 5))
         SkyButton(buttons, text="재생 / 정지", command=self.toggle, width=12).pack(side="left")
+        compact_row = tk.Frame(left)
+        compact_row.pack(fill="x", pady=(0, 6))
+        tk.Checkbutton(compact_row, text="축소 시뮬레이션", variable=self.compact_view,
+                       command=self.toggle_compact_view).pack(side="left")
 
         current = tk.LabelFrame(left, text="현재 상태", padx=9, pady=10)
         current.pack(fill="x", pady=(18, 8))
@@ -59,6 +64,9 @@ class HoistwayView(tk.Frame):
         self.status_label = tk.Label(current, text="운행 경로를 선택하세요.", anchor="w",
                                      justify="left", wraplength=270)
         self.status_label.pack(fill="x", pady=(3, 0))
+        self.source_label = tk.Label(current, text="", anchor="w", justify="left",
+                                     wraplength=270, font=("맑은 고딕", 9))
+        self.source_label.pack(fill="x", pady=(8, 0))
         tk.Label(left, text="1:1 로핑 위치 도식입니다. 기계동력 입력의 거리를 전체 승강행정으로 보고 층고를 동일하게 나눕니다. 카와 균형추 크기는 실제 치수가 아니며 간섭·안전 검증에 사용할 수 없습니다.",
                  anchor="nw", justify="left", wraplength=285).pack(fill="x", pady=(20, 0))
 
@@ -118,6 +126,10 @@ class HoistwayView(tk.Frame):
         if 2 <= count <= 100:
             self.structure_key = None
 
+
+    def toggle_compact_view(self):
+        self.structure_key = None
+        self.redraw()
 
     def stop(self):
         self.playing = False
@@ -182,6 +194,12 @@ class HoistwayView(tk.Frame):
         self.stop()
         self.arrived = False
         self.profile = {**result, "trip": trip}
+        self.source_label.configure(
+            text=("시뮬레이션 입력 출처: 기계동력 곡선 탭\n"
+                  f"운행거리 {values[0]:g} m · 최고속도 {values[1]:g} m/s · "
+                  f"가속도 {values[2]:g} m/s² · 저크 {values[3]:g} m/s³\n"
+                  f"등가 이동질량 {values[4]:g} kg · 불평형·저항 합력 {values[5]:g} N")
+        )
         self.structure_key = None
         self.slider.configure(to=result["duration_s"])
         self.slider.set(0)
@@ -261,23 +279,25 @@ class HoistwayView(tk.Frame):
         while index > 0 and samples[index][0] > time:
             index -= 1
         trip = self.profile["trip"]
-        geom = HoistwayGeometry(trip.floors)
+        geom = HoistwayGeometry(trip.floors, pitch_px=42 if self.compact_view.get() else 68,
+                                top_px=155 if self.compact_view.get() else 155,
+                                bottom_px=70 if self.compact_view.get() else 90)
         palette = get_theme(self.canvas)[1]
         width = max(500, self.canvas.winfo_width())
         self.draw_structure(trip, geom, width, palette)
         self.canvas.delete("moving")
         cx = width / 2
-        car_x, cw_x = cx - 96, cx + 96
+        car_x, cw_x = cx - 58, cx + 58
         car_y = geom.car_bottom_y(trip, samples[index][1])
         weight_y = geom.counterweight_bottom_y(trip, samples[index][1])
         # 1:1 traction layout: the traction sheave is offset from the car/counterweight
         # suspension lines and a deflection sheave guides the counterweight side.  This
         # keeps the drawing schematic (not installation geometry) without showing the
         # machine as if it were attached directly to either moving mass.
-        machine_x = car_x + 18
-        traction_y = geom.top_px - 78
+        machine_x = car_x + 8
+        traction_y = geom.top_px - 88
         deflector_x = cw_x
-        deflector_y = geom.top_px - 48
+        deflector_y = geom.top_px - 54
         car_rope_top = car_y - 58
         cw_rope_top = weight_y - 64
         self.canvas.create_line(car_x, car_rope_top, car_x, traction_y,
@@ -288,7 +308,7 @@ class HoistwayView(tk.Frame):
                                 fill=palette["muted"], width=2, tags="moving")
         self.canvas.create_line(deflector_x, deflector_y, cw_x, cw_rope_top,
                                 fill=palette["muted"], width=2, tags="moving")
-        self.canvas.create_oval(machine_x - 22, traction_y - 22, machine_x + 22, traction_y + 22,
+        self.canvas.create_oval(machine_x - 30, traction_y - 30, machine_x + 30, traction_y + 30,
                                 fill=palette["surface"], outline=palette["text"], width=3,
                                 tags="moving")
         self.canvas.create_oval(deflector_x - 12, deflector_y - 12,
@@ -298,10 +318,12 @@ class HoistwayView(tk.Frame):
         # The car bottom (not its centre) coincides with each floor line.
         self.canvas.create_rectangle(car_x - 26, car_y - 58, car_x + 26, car_y,
                                      fill="#2879cc", outline="#164e87", width=2, tags="moving")
-        self.canvas.create_text(car_x, car_y - 28, text="카", fill="white", tags="moving")
+        self.canvas.create_text(car_x, car_y - 28, text="카", fill="white",
+                                font=("맑은 고딕", 12, "bold"), tags="moving")
         self.canvas.create_rectangle(cw_x - 18, weight_y - 64, cw_x + 18, weight_y,
                                      fill="#d46a17", outline="#9a470d", width=2, tags="moving")
-        self.canvas.create_text(cw_x, weight_y - 32, text="균형추", fill="white", tags="moving")
+        self.canvas.create_text(cw_x, weight_y - 32, text="균형추", fill="white",
+                                font=("맑은 고딕", 10, "bold"), tags="moving")
         phase = trip_phase(samples, index)
         self.phase_label.configure(text=phase)
         for name, label in self.phase_labels.items():
@@ -309,8 +331,14 @@ class HoistwayView(tk.Frame):
                             fg="white" if name == phase else palette["text"])
         car_height, _ = trip.position(samples[index][1])
         current = 1 + car_height / trip.floor_height_m
-        self.status_label.configure(text=f"{trip.start_floor}층 → {trip.end_floor}층 · {'상승' if trip.direction > 0 else '하강'}\n"
-                                         f"현재 약 {current:.1f}층 · {samples[index][0]:.2f}/{self.profile['duration_s']:.2f}초")
+        velocity = samples[index][2]
+        acceleration = samples[index][3]
+        self.status_label.configure(
+            text=(f"{trip.start_floor}층 → {trip.end_floor}층 · {'상승' if trip.direction > 0 else '하강'}\n"
+                  f"현재 약 {current:.1f}층 · {samples[index][0]:.2f}/{self.profile['duration_s']:.2f}초\n"
+                  f"속도 {velocity:.3f} m/s · 가속도 {acceleration:.3f} m/s²\n"
+                  f"카와 균형추는 1:1 로핑으로 반대 방향 이동")
+        )
         if index == len(samples) - 1 and not self.arrived:
             self.arrived = True
             self.start_floor.set(str(trip.end_floor))
