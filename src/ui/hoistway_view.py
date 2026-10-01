@@ -279,9 +279,10 @@ class HoistwayView(tk.Frame):
         while index > 0 and samples[index][0] > time:
             index -= 1
         trip = self.profile["trip"]
-        geom = HoistwayGeometry(trip.floors, pitch_px=42 if self.compact_view.get() else 68,
-                                top_px=155 if self.compact_view.get() else 155,
-                                bottom_px=70 if self.compact_view.get() else 90)
+        compact = getattr(self, "compact_view", None)
+        is_compact = bool(compact.get()) if compact is not None else False
+        geom = HoistwayGeometry(trip.floors, pitch_px=42 if is_compact else 68,
+                                top_px=155, bottom_px=70 if is_compact else 90)
         palette = get_theme(self.canvas)[1]
         width = max(500, self.canvas.winfo_width())
         self.draw_structure(trip, geom, width, palette)
