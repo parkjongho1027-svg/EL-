@@ -31,9 +31,9 @@ class HoistwayView(tk.Frame):
         right.pack(side="right", fill="both", expand=True, padx=(5, 12), pady=8)
 
         tk.Label(left, text="운행 설정", font=("맑은 고딕", 12, "bold"), anchor="w").pack(fill="x", pady=(0, 10))
-        self.count_box = self._row(left, "전체 층수", self.floor_count, list(range(2, 101)))
-        self.start_box = self._row(left, "출발층", self.start_floor, readonly_entry=True)
-        self.end_box = self._row(left, "도착층", self.end_floor, list(range(1, 11)))
+        self.count_box = self._row(left, "전체 층수", self.floor_count)
+        self.start_box = self._row(left, "출발층", self.start_floor)
+        self.end_box = self._row(left, "도착층", self.end_floor)
         tk.Label(left, text="도착 후 출발층이 자동으로 바뀝니다.\n오른쪽 층 번호를 눌러 바로 이동할 수도 있습니다.",
                  anchor="w", justify="left", wraplength=285).pack(fill="x", pady=(12, 10))
         tk.Label(left, text="운행 시간 (s)", anchor="w").pack(fill="x")
@@ -75,21 +75,49 @@ class HoistwayView(tk.Frame):
         self.canvas.bind("<MouseWheel>", self.scroll_wheel)
         self.canvas.bind("<Button-4>", lambda _event: self.canvas.yview_scroll(-2, "units"))
         self.canvas.bind("<Button-5>", lambda _event: self.canvas.yview_scroll(2, "units"))
-        self.count_box.bind("<<ComboboxSelected>>", self.change_floor_count)
-        self.end_box.bind("<<ComboboxSelected>>", self.destination_selected)
+        for entry in (self.count_box, self.start_box, self.end_box):
+            entry.bind("<Return>", self.keyboard_route_changed)
+            entry.bind("<KP_Enter>", self.keyboard_route_changed)
+        self.count_box.bind("<FocusOut>", self.floor_count_focus_out)
 
     @staticmethod
     def _row(parent, name, value, options=None, readonly_entry=False):
         row = tk.Frame(parent)
         row.pack(fill="x", pady=4)
         tk.Label(row, text=name, width=9, anchor="w").pack(side="left")
-        if readonly_entry:
-            entry = ttk.Entry(row, textvariable=value, width=8, state="readonly")
-        else:
-            entry = ttk.Combobox(row, textvariable=value, values=options,
-                                 width=7, state="readonly")
+        entry = ttk.Entry(row, textvariable=value, width=9)
         entry.pack(side="left", padx=5)
         return entry
+
+    def keyboard_route_changed(self, _event=None):
+        """Apply floor values typed directly with the keyboard."""
+        try:
+            count = int(self.floor_count.get())
+            start = int(self.start_floor.get())
+            destination = int(self.end_floor.get())
+            if not 2 <= count <= 100:
+                raise ValueError
+            if not 1 <= start <= count or not 1 <= destination <= count:
+                raise ValueError
+        except ValueError:
+            self.status_label.configure(text="층수는 정수로 입력하세요. 전체 층수는 2~100, 출발층·도착층은 그 범위 안이어야 합니다.")
+            return "break"
+        self.structure_key = None
+        if start == destination:
+            self.status_label.configure(text=f"현재 {start}층입니다. 다른 목적층을 입력하세요.")
+            return "break"
+        if self.calculate():
+            self.play()
+        return "break"
+
+    def floor_count_focus_out(self, _event=None):
+        try:
+            count = int(self.floor_count.get())
+        except ValueError:
+            return
+        if 2 <= count <= 100:
+            self.structure_key = None
+
 
     def stop(self):
         self.playing = False
@@ -242,14 +270,31 @@ class HoistwayView(tk.Frame):
         car_x, cw_x = cx - 96, cx + 96
         car_y = geom.car_bottom_y(trip, samples[index][1])
         weight_y = geom.counterweight_bottom_y(trip, samples[index][1])
-        sheave = geom.top_px - 68
-        for x, y in ((car_x, car_y - 58), (cw_x, weight_y - 64)):
-            self.canvas.create_line(x, sheave, x, y, fill=palette["muted"], width=2, tags="moving")
-        self.canvas.create_line(car_x, sheave, cw_x, sheave, fill=palette["muted"], width=2, tags="moving")
-        for x in (car_x, cw_x):
-            self.canvas.create_oval(x - 14, sheave - 14, x + 14, sheave + 14,
-                                    fill=palette["surface"], outline=palette["muted"], width=2,
-                                    tags="moving")
+        # 1:1 traction layout: the traction sheave is offset from the car/counterweight
+        # suspension lines and a deflection sheave guides the counterweight side.  This
+        # keeps the drawing schematic (not installation geometry) without showing the
+        # machine as if it were attached directly to either moving mass.
+        machine_x = car_x + 18
+        traction_y = geom.top_px - 78
+        deflector_x = cw_x
+        deflector_y = geom.top_px - 48
+        car_rope_top = car_y - 58
+        cw_rope_top = weight_y - 64
+        self.canvas.create_line(car_x, car_rope_top, car_x, traction_y,
+                                fill=palette["muted"], width=2, tags="moving")
+        self.canvas.create_line(car_x, traction_y, machine_x, traction_y,
+                                fill=palette["muted"], width=2, tags="moving")
+        self.canvas.create_line(machine_x, traction_y, deflector_x, deflector_y,
+                                fill=palette["muted"], width=2, tags="moving")
+        self.canvas.create_line(deflector_x, deflector_y, cw_x, cw_rope_top,
+                                fill=palette["muted"], width=2, tags="moving")
+        self.canvas.create_oval(machine_x - 22, traction_y - 22, machine_x + 22, traction_y + 22,
+                                fill=palette["surface"], outline=palette["text"], width=3,
+                                tags="moving")
+        self.canvas.create_oval(deflector_x - 12, deflector_y - 12,
+                                deflector_x + 12, deflector_y + 12,
+                                fill=palette["surface"], outline=palette["muted"], width=2,
+                                tags="moving")
         # The car bottom (not its centre) coincides with each floor line.
         self.canvas.create_rectangle(car_x - 26, car_y - 58, car_x + 26, car_y,
                                      fill="#2879cc", outline="#164e87", width=2, tags="moving")
