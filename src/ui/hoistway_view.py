@@ -25,9 +25,35 @@ class HoistwayView(tk.Frame):
         self.start_floor = tk.StringVar(value="1")
         self.end_floor = tk.StringVar(value="10")
 
-        left = tk.Frame(self, width=315)
-        left.pack(side="left", fill="y", padx=(12, 5), pady=8)
-        left.pack_propagate(False)
+        # 왼쪽 설정·상태 영역은 내용이 창 높이보다 길어져도 모두 확인할 수 있게
+        # Canvas 안에 넣고 세로 스크롤을 항상 제공한다.
+        left_shell = tk.Frame(self, width=330)
+        left_shell.pack(side="left", fill="y", padx=(12, 5), pady=8)
+        left_shell.pack_propagate(False)
+        left_canvas = tk.Canvas(left_shell, highlightthickness=0, width=305)
+        left_scrollbar = ttk.Scrollbar(left_shell, orient="vertical", command=left_canvas.yview)
+        left_canvas.configure(yscrollcommand=left_scrollbar.set)
+        left_scrollbar.pack(side="right", fill="y")
+        left_canvas.pack(side="left", fill="both", expand=True)
+        left = tk.Frame(left_canvas, width=295)
+        left_window = left_canvas.create_window((0, 0), window=left, anchor="nw")
+
+        def update_left_scroll(_event=None):
+            """왼쪽 내용 크기에 맞춰 스크롤 범위와 내부 폭을 갱신한다."""
+            left_canvas.configure(scrollregion=left_canvas.bbox("all"))
+            left_canvas.itemconfigure(left_window, width=max(280, left_canvas.winfo_width()))
+
+        left.bind("<Configure>", update_left_scroll)
+        left_canvas.bind("<Configure>", update_left_scroll)
+
+        def scroll_left(event):
+            """마우스 휠로 왼쪽 설정·현재 상태·입력 출처를 위아래로 이동한다."""
+            if getattr(event, "delta", 0):
+                left_canvas.yview_scroll(-int(event.delta / 120) * 2, "units")
+
+        left_canvas.bind("<MouseWheel>", scroll_left)
+        left.bind("<MouseWheel>", scroll_left)
+
         right = tk.Frame(self)
         right.pack(side="right", fill="both", expand=True, padx=(5, 12), pady=8)
 
@@ -101,6 +127,14 @@ class HoistwayView(tk.Frame):
             entry.bind("<Return>", self.keyboard_route_changed)
             entry.bind("<KP_Enter>", self.keyboard_route_changed)
         self.count_box.bind("<FocusOut>", self.floor_count_focus_out)
+
+        # 라벨·입력칸 위에서도 마우스 휠이 왼쪽 영역을 스크롤하도록 연결한다.
+        def bind_left_wheel(widget):
+            widget.bind("<MouseWheel>", scroll_left, add="+")
+            for child in widget.winfo_children():
+                bind_left_wheel(child)
+
+        bind_left_wheel(left)
 
     @staticmethod
     def _row(parent, name, value, options=None, readonly_entry=False):
