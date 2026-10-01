@@ -1,4 +1,4 @@
-"""Scrollable floor-selection and motion view for the engineering tools dialog."""
+"""승강로 층 선택, 운행 재생, 카·균형추 화면 표시를 담당하는 UI 모듈."""
 
 import tkinter as tk
 from tkinter import ttk
@@ -13,6 +13,7 @@ from src.ui.ui_components import SkyButton, messagebox
 
 class HoistwayView(tk.Frame):
     def __init__(self, parent, panel, window):
+        """승강로 시뮬레이션에 필요한 입력창, 상태창, 그림 영역을 만든다."""
         super().__init__(parent)
         self.panel, self.window = panel, window
         self.profile = None
@@ -128,10 +129,12 @@ class HoistwayView(tk.Frame):
 
 
     def toggle_compact_view(self):
+        """일반 보기와 층 간격을 줄인 축소 시뮬레이션을 전환한다."""
         self.structure_key = None
         self.redraw()
 
     def stop(self):
+        """재생 중인 시뮬레이션을 멈추고 예약된 화면 갱신을 취소한다."""
         self.playing = False
         if self.after_id is not None:
             try:
@@ -151,10 +154,11 @@ class HoistwayView(tk.Frame):
         self.calculate()
 
     def destination_selected(self, _event=None):
+        """새 목적층을 선택하면 현재 위치를 기준으로 다음 운행을 준비한다."""
         destination = int(self.end_floor.get())
         if self.profile is not None and 0 < self.slider.get() < self.profile["duration_s"]:
-            # A new route from a moving car requires a stop model. Snap to the
-            # nearest floor and state this approximation explicitly in the UI.
+            # 운행 중 목적층을 바꾸면 정확한 정지 제어 모델이 필요하므로,
+            # 현재 카와 가장 가까운 층에 정차한 것으로 단순화해 새 운행을 시작한다.
             trip = self.profile["trip"]
             samples = self.profile["samples"]
             time = float(self.slider.get())
@@ -174,6 +178,7 @@ class HoistwayView(tk.Frame):
         self.destination_selected()
 
     def calculate(self, *, show_errors=True):
+        """기계동력 탭의 입력값으로 선택한 층 사이의 S-Curve 운행을 계산한다."""
         if self.start_floor.get() == self.end_floor.get():
             self.status_label.configure(text="현재 층과 다른 목적층을 선택하세요.")
             return False
@@ -207,11 +212,11 @@ class HoistwayView(tk.Frame):
         return True
 
     def play(self):
+        """계산된 운행 데이터를 처음 또는 현재 시점부터 재생한다."""
         if not self.profile and not self.calculate():
             return
         if float(self.slider.get()) >= self.profile["duration_s"]:
-            # The previous arrival has become the current departure floor.
-            # A new destination must be chosen before another trip can start.
+            # 도착한 층은 다음 운행의 출발층이므로 새 목적층을 먼저 선택해야 한다.
             self.status_label.configure(text="도착했습니다. 다음 목적층을 선택하세요.")
             return
         self.playing = True
@@ -224,6 +229,7 @@ class HoistwayView(tk.Frame):
             self.play()
 
     def tick(self):
+        """80ms마다 운행 시간을 조금씩 진행시키고 화면을 다시 그린다."""
         self.after_id = None
         if not self.playing or not self.window.winfo_exists():
             return
@@ -240,6 +246,7 @@ class HoistwayView(tk.Frame):
         self.canvas.yview_scroll(-int(event.delta / 120) * 2, "units")
 
     def draw_structure(self, trip, geom, width, palette):
+        """층 눈금과 승강로처럼 움직이지 않는 배경 구조를 그린다."""
         key = (trip.floors, width, palette["background"])
         if self.structure_key == key:
             return
@@ -266,6 +273,7 @@ class HoistwayView(tk.Frame):
                                     fill=line_color, width=2, tags="structure")
 
     def redraw(self, _event=None):
+        """현재 시간에 맞춰 카·균형추·로프와 운행 상태를 화면에 갱신한다."""
         if not self.profile:
             return
         samples = self.profile["samples"]
@@ -291,10 +299,8 @@ class HoistwayView(tk.Frame):
         car_x, cw_x = cx - 58, cx + 58
         car_y = geom.car_bottom_y(trip, samples[index][1])
         weight_y = geom.counterweight_bottom_y(trip, samples[index][1])
-        # 1:1 traction layout: the traction sheave is offset from the car/counterweight
-        # suspension lines and a deflection sheave guides the counterweight side.  This
-        # keeps the drawing schematic (not installation geometry) without showing the
-        # machine as if it were attached directly to either moving mass.
+        # 1:1 로핑을 알아보기 쉽게 권상기 쉬브와 편향도르래를 떨어뜨려 표시한다.
+        # 실제 설치 치수를 뜻하는 도면이 아니라 카와 균형추의 이동 관계를 보여주는 도식이다.
         machine_x = car_x + 8
         traction_y = geom.top_px - 88
         deflector_x = cw_x
@@ -316,7 +322,7 @@ class HoistwayView(tk.Frame):
                                 deflector_x + 12, deflector_y + 12,
                                 fill=palette["surface"], outline=palette["muted"], width=2,
                                 tags="moving")
-        # The car bottom (not its centre) coincides with each floor line.
+        # 카의 중심이 아니라 카 바닥이 각 층 바닥선과 맞도록 그린다.
         self.canvas.create_rectangle(car_x - 26, car_y - 58, car_x + 26, car_y,
                                      fill="#2879cc", outline="#164e87", width=2, tags="moving")
         self.canvas.create_text(car_x, car_y - 28, text="카", fill="white",
