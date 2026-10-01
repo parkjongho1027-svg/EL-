@@ -45,16 +45,35 @@ class HoistwayTrip:
 
 
 def trip_phase(samples, index):
-    """Classify the current jerk-limited trajectory sample by motion phase."""
+    """Classify a sampled S-Curve into the detailed UI motion phases."""
     if not samples or not 0 <= index < len(samples):
         raise CalculationInputError("운행 표본의 위치가 올바르지 않습니다.")
-    if index == 0:
-        return "출발"
     if index == len(samples) - 1:
         return "도착"
-    acceleration = samples[index][3]
-    if acceleration > 1e-6:
-        return "가속"
-    if acceleration < -1e-6:
-        return "감속"
-    return "주행"
+    if index == 0:
+        return "Jerk"
+
+    _t, _x, velocity, acceleration, _power = samples[index]
+    prev_a = samples[index - 1][3]
+    next_a = samples[index + 1][3] if index + 1 < len(samples) else acceleration
+    da = next_a - prev_a
+    eps_a, eps_j, eps_v = 1e-6, 1e-7, 1e-6
+
+    # The seven mathematical S-Curve segments are exposed with the labels used
+    # by the hoistway UI.  '착상부' is the final positive-jerk deceleration
+    # rounding segment immediately before arrival.
+    if acceleration > eps_a:
+        if da > eps_j:
+            return "Jerk"
+        if da < -eps_j:
+            return "가속라운드"
+        return "일정가속"
+    if acceleration < -eps_a:
+        if da < -eps_j:
+            return "감속라운드"
+        if da > eps_j:
+            return "착상부"
+        return "일정감속"
+    if velocity > eps_v:
+        return "전속"
+    return "Jerk"
