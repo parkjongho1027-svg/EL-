@@ -40,6 +40,6 @@ def test_full_trip_displays_phases_in_order_when_cruise_exists():
     phases = [trip_phase(samples, index) for index in range(len(samples))]
     changes = [phase for index, phase in enumerate(phases)
                if index == 0 or phase != phases[index - 1]]
-    assert changes == ["출발", "가속", "주행", "감속", "도착"]
+    assert changes == ["Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"]
     with pytest.raises(CalculationInputError):
         trip_phase(samples, len(samples))
