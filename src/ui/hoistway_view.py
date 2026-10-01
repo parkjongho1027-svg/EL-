@@ -57,9 +57,9 @@ class HoistwayView(tk.Frame):
         self.phase_bar = tk.Frame(current)
         self.phase_bar.pack(fill="x", pady=8)
         self.phase_labels = {}
-        for phase in ("출발", "가속", "주행", "감속", "도착"):
-            label = tk.Label(self.phase_bar, text=phase, width=5)
-            label.pack(side="left", padx=1)
+        for phase in ("Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"):
+            label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 8, "bold"))
+            label.pack(side="left", padx=2)
             self.phase_labels[phase] = label
         self.status_label = tk.Label(current, text="운행 경로를 선택하세요.", anchor="w",
                                      justify="left", wraplength=270)
