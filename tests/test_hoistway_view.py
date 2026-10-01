@@ -103,11 +103,12 @@ def test_reaching_last_sample_updates_departure_and_draws_car_floor(monkeypatch)
         canvas=Chart(), structure_key=None,
         draw_structure=lambda *_args: None,
         phase_label=label,
-        phase_labels={phase: label for phase in ("출발", "가속", "주행", "감속", "도착")},
+        phase_labels={phase: label for phase in ("Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착")},
+        compact_view=FloorValue(False),
         status_label=label, start_floor=FloorValue(1), arrived=False,
     )
     HoistwayView.redraw(view)
     assert view.start_floor.get() == "10"
     assert view.arrived
-    assert car_rectangles[-1][3] == pytest.approx(HoistwayGeometry(10).floor_y(10))
+    assert car_rectangles[-1][3] == pytest.approx(HoistwayGeometry(10, top_px=155, bottom_px=90).floor_y(10))
     assert scroll and 0 <= scroll[-1] <= 1
