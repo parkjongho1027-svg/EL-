@@ -21,69 +21,19 @@
 
 ### 대표 실행 화면
 
-실행 화면은 **글자가 읽히도록 원본 크기 화면을 개별로 표시**합니다. 작은 콜라주 이미지는 사용하지 않습니다.
+README에는 **축소 콜라주나 블러 처리된 화면을 사용하지 않습니다.** 현재 저장소에 원본 해상도로 보존된 화면만 표시합니다.
 
-#### 1) 핵심 계산 · 시뮬레이션
-전동기 용량 계산 화면입니다. 입력값, 계산 결과와 계산 과정을 한 화면에서 확인할 수 있습니다.
+#### 계산 화면 예시
+아래 화면은 이전 빌드에서 실제로 사용한 계산 UI 캡처입니다. 화면 구성과 입력·결과 배치를 확인하는 참고용이며, 현재 v99의 모든 기능을 대표한다는 뜻은 아닙니다.
 
-![v99 전동기 용량 계산](docs/screenshots/v99_motor_capacity.png)
+![계산 UI 원본 화면](docs/ui_sample_older_build.png)
 
-<details>
-<summary><strong>핵심 계산 · 시뮬레이션 화면 더 보기</strong></summary>
+#### 그래프 출력 예시
+그래프는 원본 PNG를 그대로 표시합니다.
 
-<br>
+![전기에너지 비교 그래프 원본](docs/energy_comparison.png)
 
-![v99 트랙션비 계산](docs/screenshots/v99_traction_ratio.png)
-
-![v99 브레이크 제동](docs/screenshots/v99_brake.png)
-
-![v99 교통량 분석](docs/screenshots/v99_traffic.png)
-
-![v99 KC 기준 검토](docs/screenshots/v99_kc_review.png)
-
-![v99 S-Curve 시뮬레이션](docs/screenshots/v99_scurve.png)
-
-![v99 승강로 위치 시뮬레이션](docs/screenshots/v99_hoistway.png)
-
-</details>
-
-#### 2) 공학 데이터 도구
-진동 분석, 도면 입력 후보 추출, 실측 속도 비교 등 실제 데이터 파일을 이용하는 보조 기능입니다.
-
-![v99 공학 데이터 도구 - 진동 분석](docs/screenshots/v99_vibration.png)
-
-<details>
-<summary><strong>공학 데이터 도구 화면 더 보기</strong></summary>
-
-<br>
-
-![v99 설계 후보 탐색](docs/screenshots/v99_design_candidates.png)
-
-![v99 전동기 부품 DB](docs/screenshots/v99_motor_db.png)
-
-![v99 도면 입력 후보 추출](docs/screenshots/v99_drawing_extract.png)
-
-![v99 실측 속도 비교](docs/screenshots/v99_speed_compare.png)
-
-</details>
-
-#### 3) 프로젝트 · 검토 · 설정
-프로젝트 저장·불러오기와 통합 계산 등 반복 검토에 필요한 기능입니다.
-
-![v99 통합 계산](docs/screenshots/v99_integrated_result.png)
-
-<details>
-<summary><strong>프로젝트 · 설정 화면 더 보기</strong></summary>
-
-<br>
-
-![v99 프로젝트 관리](docs/screenshots/v99_project_management.png)
-
-![v99 프로그램 설정](docs/screenshots/v99_settings.png)
-
-![v99 영어 UI](docs/screenshots/v99_english_ui.png)
-
-</details>
+> v99 실행 화면은 작은 합성 이미지로 줄이지 않고, 원본 캡처 파일이 저장소에 들어온 뒤 기능별 개별 화면으로 연결합니다.
 
 <details>
 <summary><strong>전체 기능 · 계산 가정 · 테스트 · 개발 이력 자세히 보기</strong></summary>
