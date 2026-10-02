@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from src.core.errors import CalculationInputError
-from src.core.hoistway import HoistwayTrip, trip_phase
+from src.core.hoistway import HoistwayTrip, PHASE_NAMES, trip_phase
 from src.core.trajectory import scurve_profile
 from src.ui.hoistway_geometry import HoistwayGeometry
 from src.ui.theme_manager import get_theme
@@ -73,25 +73,31 @@ class HoistwayView(tk.Frame):
         SkyButton(buttons, text="재생 / 정지", command=self.toggle, width=12).pack(side="left")
         current = tk.LabelFrame(left, text="현재 상태", padx=9, pady=10)
         current.pack(fill="x", pady=(18, 8))
-        self.phase_label = tk.Label(current, text="출발", anchor="w", font=("맑은 고딕", 20, "bold"))
+        # v98의 현재 상태 표시를 그대로 복구한다.
+        self.phase_label = tk.Label(current, text="jerk", anchor="w",
+                                    font=("맑은 고딕", 18, "bold"))
         self.phase_label.pack(fill="x")
         self.phase_bar = tk.Frame(current)
-        self.phase_bar.pack(fill="x", pady=(8, 4))
+        self.phase_bar.pack(fill="x", pady=8)
         self.phase_labels = {}
-        phases = ("Jerk", "일정가속", "가속라운드", "전속",
-                  "감속라운드", "일정감속", "착상부", "도착")
-        for number, phase in enumerate(phases):
-            label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 10, "bold"))
-            label.grid(row=number // 4, column=number % 4, padx=3, pady=3, sticky="w")
+        for column in range(4):
+            self.phase_bar.grid_columnconfigure(column, weight=1)
+        for position, phase in enumerate((*PHASE_NAMES, "도착")):
+            label = tk.Label(self.phase_bar, text=phase, font=("맑은 고딕", 9))
+            label.grid(row=position // 4, column=position % 4,
+                       sticky="ew", padx=1, pady=2)
             self.phase_labels[phase] = label
-        self.phase_description = tk.Label(current, text="", anchor="w",
-                                          justify="left", wraplength=270,
-                                          font=("맑은 고딕", 10))
-        self.phase_description.pack(fill="x", pady=(6, 4))
-        self.status_label = tk.Label(current, text="운행 경로를 선택하세요.", anchor="w",
-                                     justify="left", wraplength=270,
-                                     font=("맑은 고딕", 10))
-        self.status_label.pack(fill="x", pady=(4, 0))
+        tk.Label(
+            current,
+            text="착상부: 감속을 완화하는 모델의 마지막 구간 (정밀 착상 제어 아님)",
+            anchor="w", justify="left", wraplength=305,
+            font=("맑은 고딕", 9),
+        ).pack(fill="x", pady=(0, 5))
+        self.status_label = tk.Label(
+            current, text="운행 경로를 선택하세요.", anchor="w",
+            justify="left", wraplength=305,
+        )
+        self.status_label.pack(fill="x", pady=(3, 0))
 
         source = tk.LabelFrame(left, text="시뮬레이션 입력 출처", padx=9, pady=8)
         source.pack(fill="x", pady=(8, 6))
@@ -422,25 +428,11 @@ class HoistwayView(tk.Frame):
                                      fill="#d46a17", outline="#9a470d", width=2, tags="moving")
         self.canvas.create_text(cw_x, weight_y - 32, text="균형추", fill="white",
                                 font=("맑은 고딕", 10, "bold"), tags="moving")
-        phase = trip_phase(samples, index)
+        phase = trip_phase(samples, index, self.profile.get("phase_durations_s"))
         self.phase_label.configure(text=phase)
         for name, label in self.phase_labels.items():
             label.configure(bg=palette["accent"] if name == phase else palette["surface"],
                             fg="white" if name == phase else palette["text"])
-
-        # 예전 화면처럼 현재 단계의 뜻을 바로 아래에서 짧게 설명한다.
-        descriptions = {
-            "Jerk": "Jerk: 가속도가 서서히 증가하는 출발 구간",
-            "일정가속": "일정가속: 설정한 가속도를 유지하는 구간",
-            "가속라운드": "가속라운드: 가속을 줄이며 전속 운전으로 넘어가는 구간",
-            "전속": "전속: 최고속도를 일정하게 유지하는 구간",
-            "감속라운드": "감속라운드: 감속을 시작하며 속도를 부드럽게 낮추는 구간",
-            "일정감속": "일정감속: 설정한 감속도를 유지하는 구간",
-            "착상부": "착상부: 감속을 완화하는 모델의 마지막 구간\n(정밀 착상 제어 아님)",
-            "도착": "도착: 선택한 목적층에 운행이 끝난 상태",
-        }
-        if hasattr(self, "phase_description"):
-            self.phase_description.configure(text=descriptions.get(phase, ""))
 
         # 일반 시뮬레이션과 같은 시점의 전체 축소도를 오른쪽에 함께 표시한다.
         self.draw_miniature(trip, samples[index][1], palette)
