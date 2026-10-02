@@ -1,5 +1,7 @@
 """Tk Canvas에서 시간별 속도와 부호가 있는 기계동력을 표시한다."""
 
+from src.ui.phase_annotations import phase_segments
+
 
 def draw_scurve_plot(canvas, profile, palette):
     canvas.delete("all")
@@ -25,7 +27,7 @@ def draw_scurve_plot(canvas, profile, palette):
     )
     duration = max(profile["duration_s"], 1e-12)
     upper = (25, max(85, height * 0.45 - 12))
-    lower = (height * 0.55, height - 32)
+    lower = (height * 0.52, height - 32)
 
     def trace(label, values, bounds, top, bottom, color):
         low, high = bounds
@@ -79,6 +81,13 @@ def draw_scurve_plot(canvas, profile, palette):
         *lower,
         power_color,
     )
+    phases = phase_segments(profile) if not electrical else ()
+    if phases:
+        for number, name, start, end in phases:
+            x = left + (right - left) * start / duration
+            if number != 1:
+                for top, bottom in (upper, lower):
+                    canvas.create_line(x, top, x, bottom, fill=grid, dash=(3, 4))
     canvas.create_text(
         (left + right) / 2,
         height - 7,
@@ -216,7 +225,8 @@ def _native_draw(canvas, profile, palette, reference=None):
     height = max(200, min(750, canvas.winfo_height() - 4))
     try:
         encoded = base64.b64encode(
-            render_png(profile, palette, reference, (width, height))
+            render_png(profile, palette, reference, (width, height),
+                       phase_labels=False)
         ).decode("ascii")
         photo = PhotoImage(master=canvas, data=encoded, format="png")
     except TclError:

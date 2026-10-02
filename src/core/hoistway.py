@@ -1,4 +1,4 @@
-"""승강로 시뮬레이션에서 사용하는 층간 이동과 카·균형추 위치 계산."""
+"""Floor-to-floor positions for a simplified 1:1 hoistway animation."""
 
 from dataclasses import dataclass
 import math
@@ -8,14 +8,12 @@ from .errors import CalculationInputError
 
 @dataclass(frozen=True)
 class HoistwayTrip:
-    """층수와 출발·도착층을 받아 한 번의 승강기 운행 조건을 관리한다."""
     floors: int
     start_floor: int
     end_floor: int
     height_m: float
 
     def __post_init__(self):
-        """층수, 출발·도착층, 전체 승강행정이 올바른 값인지 확인한다."""
         if isinstance(self.floors, bool) or not isinstance(self.floors, int) or not 2 <= self.floors <= 100:
             raise CalculationInputError("전체 층수는 2~100 사이의 정수여야 합니다.")
         if any(isinstance(floor, bool) or not isinstance(floor, int) or not 1 <= floor <= self.floors
@@ -28,21 +26,17 @@ class HoistwayTrip:
 
     @property
     def floor_height_m(self):
-        """전체 승강행정을 층 사이 개수로 나누어 한 층 높이를 구한다."""
         return self.height_m / (self.floors - 1)
 
     @property
     def distance_m(self):
-        """출발층에서 도착층까지 실제로 이동할 거리를 구한다."""
         return abs(self.end_floor - self.start_floor) * self.floor_height_m
 
     @property
     def direction(self):
-        """상승은 1, 하강은 -1로 운행 방향을 반환한다."""
         return 1 if self.end_floor > self.start_floor else -1
 
     def position(self, traveled_m):
-        """이동한 거리를 이용해 현재 카와 균형추의 높이를 계산한다."""
         if not isinstance(traveled_m, (int, float)) or not math.isfinite(traveled_m):
             raise CalculationInputError("이동 위치는 유한한 숫자여야 합니다.")
         travel = min(self.distance_m, max(0.0, traveled_m))
@@ -54,16 +48,13 @@ PHASE_NAMES = ("jerk", "일정가속", "가속라운드", "전속", "감속라�
 
 
 def trip_phase(samples, index, phase_durations_s=None):
-    """v98과 같은 7개 S-Curve 구간 시간을 기준으로 현재 상태를 구한다."""
+    """Classify a sample using the exact durations of the seven jerk segments."""
     if not samples or not 0 <= index < len(samples):
         raise CalculationInputError("운행 표본의 위치가 올바르지 않습니다.")
     if phase_durations_s is not None:
-        if (not isinstance(phase_durations_s, (tuple, list))
-                or len(phase_durations_s) != len(PHASE_NAMES)
-                or any(isinstance(value, bool)
-                       or not isinstance(value, (float, int))
-                       or not math.isfinite(value) or value < 0
-                       for value in phase_durations_s)):
+        if not isinstance(phase_durations_s, (tuple, list)) or len(phase_durations_s) != len(PHASE_NAMES) \
+                or any(isinstance(value, bool) or not isinstance(value, (float, int))
+                       or not math.isfinite(value) or value < 0 for value in phase_durations_s):
             raise CalculationInputError("운행 구간 시간은 유한한 0 이상 숫자 7개여야 합니다.")
         if index == len(samples) - 1:
             return "도착"
@@ -76,8 +67,6 @@ def trip_phase(samples, index, phase_durations_s=None):
             if time <= elapsed + 1e-9:
                 return name
         return "착상부"
-
-    # 이전 형식의 프로필도 열 수 있도록 단순 상태 판정을 남긴다.
     if index == 0:
         return "출발"
     if index == len(samples) - 1:

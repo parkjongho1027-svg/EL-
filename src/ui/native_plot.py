@@ -4,6 +4,8 @@ import math
 import struct
 import zlib
 
+from src.ui.phase_annotations import PHASE_ENGLISH, phase_segments
+
 # 파일 저장에 필요한 영문·숫자 5×7 비트맵 글꼴. 화면 글꼴은 Tk가 담당한다.
 FONT = {
     "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
@@ -62,7 +64,7 @@ def _rgb(value):
 
 
 def render_png(profile, palette, reference=None, size=(1100, 440), axes=None,
-               comparisons=None):
+               comparisons=None, phase_labels=True):
     """축·보조선·곡선을 PNG 바이트로 반환한다. Pillow/Ghostscript 불필요."""
     w, h = size
     if w < 360 or h < 200:
@@ -135,6 +137,7 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None,
     tmax = axes["x_max"] if axes else math.ceil(duration / ts) * ts
     left, right = 85, w - 22
     electrical = reference is not None or "grid_kw_samples" in profile
+    phases = phase_segments(profile) if not electrical and comparisons is None else ()
     speed_bottom = round(h * 0.46)
     power_top = max(speed_bottom + 35, round(h * 0.62))
     for key, top, bottom, title in (
@@ -192,6 +195,12 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None,
             if key == "power":
                 num = f"{t:g}"
                 label(num, x - len(num) * 6, bottom + 3, mult=2)
+        if phases:
+            separator = _rgb("#8494a7" if palette.get("background") == "#000000" else "#a4adb7")
+            for _number, _name, start, _end in phases[1:]:
+                x = left + (right - left) * start / tmax
+                for y in range(top, bottom, 7):
+                    line((x, y), (x, min(bottom, y + 3)), separator)
         for (_, p, color), vlist in zip(profiles, values):
             previous = None
             for sample, value in plot_points(p["samples"], vlist):
@@ -202,6 +211,11 @@ def render_png(profile, palette, reference=None, size=(1100, 440), axes=None,
                 if previous is not None:
                     line(previous, point, color, 2)
                 previous = point
+    if phases:
+        for number, _name, start, end in phases:
+            if (right - left) * (end - start) / tmax >= 15:
+                middle = left + (right - left) * (start + end) / (2 * tmax)
+                label(str(number), middle - 3, 53, mult=1)
     label("TIME (S)", right - 100, h - 14)
     if comparisons is not None:
         for index, (_, _, color) in enumerate(profiles):

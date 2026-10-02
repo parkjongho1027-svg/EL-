@@ -54,11 +54,26 @@ def read_document(path):
         ) from error
     try:
         reader = PdfReader(str(source))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages[:5])
+        page_candidates = []
+        has_text = False
+        for page in reader.pages[:5]:
+            try:
+                page_text = page.extract_text(extraction_mode="layout") or ""
+            except TypeError:
+                # Lightweight readers and older adapters may lack layout mode.
+                page_text = ""
+            has_text |= bool(page_text.strip())
+            candidates = extract_fields(page_text)
+            if not candidates:
+                plain_text = page.extract_text() or ""
+                has_text |= bool(plain_text.strip())
+                candidates = extract_fields(plain_text)
+            page_candidates.extend(candidates)
     except Exception as error:
         raise CalculationInputError(f"PDF 텍스트 읽기 실패: {error}") from error
-    if text.strip():
-        return extract_fields(text)
+    if has_text:
+        # Do not pair labels on one page with values on another page.
+        return page_candidates
     try:
         import fitz
     except ImportError as error:

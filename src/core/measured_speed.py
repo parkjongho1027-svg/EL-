@@ -40,9 +40,21 @@ def compare_speed_log(profile: dict, measured: list[tuple[float, float]]) -> dic
     """Interpolate the model at measured timestamps; do not extrapolate or align clocks."""
     samples = profile["samples"]
     duration = profile["duration_s"]
-    if (len(measured) < 2 or measured[0][0] > 0.2
-            or abs(measured[-1][0] - duration) > max(0.5, duration * 0.05)):
-        raise CalculationInputError("같은 운행의 시작과 끝을 포함해야 합니다(종료 시각 오차 5% 또는 0.5초 이하).")
+    if len(measured) < 2:
+        raise CalculationInputError("비교할 속도 샘플이 두 개 이상 필요합니다.")
+    # 현장 로그는 모델보다 앞/뒤에 정지 구간을 포함할 수 있다. 파일의 종료시각을
+    # 강제로 모델 종료시각과 맞추지 않고 실제로 겹치는 공통 시간구간만 비교한다.
+    # 단, 겹침이 너무 짧으면 서로 다른 운행일 가능성이 커서 비교를 중단한다.
+    overlap_start = max(0.0, measured[0][0])
+    overlap_end = min(duration, measured[-1][0])
+    overlap = overlap_end - overlap_start
+    minimum_overlap = min(duration, max(2.0, duration * 0.50))
+    if overlap <= 0 or overlap < minimum_overlap:
+        raise CalculationInputError(
+            f"모델과 실측 기록의 공통 운행구간이 부족합니다 "
+            f"({max(0.0, overlap):.2f}s / 모델 {duration:.2f}s). "
+            "같은 운행 기록인지 시간 단위를 확인하세요."
+        )
     aligned = []
     i = 0
     for t, actual in measured:
@@ -63,4 +75,7 @@ def compare_speed_log(profile: dict, measured: list[tuple[float, float]]) -> dic
         "max_error_m_s": max(map(abs, errors)),
         "sample_count": len(aligned),
         "duration_s": duration,
+        "overlap_start_s": overlap_start,
+        "overlap_end_s": overlap_end,
+        "coverage_pct": 100.0 * overlap / duration if duration else 0.0,
     }

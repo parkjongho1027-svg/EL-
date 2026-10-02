@@ -21,6 +21,7 @@ CALCULATOR_KEYS = (
 )
 
 MAX_HISTORY_PER_CALCULATOR = 500
+MAX_VIBRATION_RECORDS = 100
 
 
 def get_data_file_path():
@@ -73,6 +74,8 @@ class PersistentStore:
             "language": "ko",
             "projects": [],
             "graphs": [],
+            "vibration_records": [],
+            "engineering_records": [],
             "traffic_presets": {},
             "calculators": {
                 key: {"previous": None, "history": []} for key in CALCULATOR_KEYS
@@ -122,6 +125,24 @@ class PersistentStore:
                     in ("traction", "traffic", "mechanical", "electrical")
                     and isinstance(item.get("state"), dict)
                 ][-MAX_HISTORY_PER_CALCULATOR:]
+            vibration_records = loaded.get("vibration_records", [])
+            if isinstance(vibration_records, list):
+                self.data["vibration_records"] = [
+                    item for item in vibration_records
+                    if isinstance(item, dict) and isinstance(item.get("primary"), dict)
+                    and isinstance(item.get("data"), dict)
+                    and (item.get("baseline") is None or isinstance(item.get("baseline"), dict))
+                ][-MAX_VIBRATION_RECORDS:]
+            engineering_records = loaded.get("engineering_records", [])
+            if isinstance(engineering_records, list):
+                self.data["engineering_records"] = [
+                    item for item in engineering_records
+                    if isinstance(item, dict)
+                    and item.get("kind") in (
+                        "drawing", "measured_speed", "hoistway_simulation", "motor_component"
+                    )
+                    and isinstance(item.get("payload"), dict)
+                ][-100:]
             presets = loaded.get("traffic_presets", {})
             if isinstance(presets, dict):
                 self.data["traffic_presets"] = {
@@ -188,6 +209,98 @@ class PersistentStore:
             if item.get("__simulation_mode__") in ("mechanical", "electrical")
             and (mode is None or item["__simulation_mode__"] == mode)
         ]
+
+    def vibration_records(self):
+        return [item.copy() for item in self.data.setdefault("vibration_records", [])]
+
+    def add_vibration_record(self, name, owner, prepared):
+        if not isinstance(name, str) or not name.strip() or not isinstance(owner, str):
+            raise ValueError("기록명과 담당자를 확인하세요.")
+        if not isinstance(prepared, dict) or not isinstance(prepared.get("primary"), dict) \
+                or not isinstance(prepared.get("data"), dict):
+            raise ValueError("저장할 진동 분석 결과를 확인하세요.")
+        saved = self.data.setdefault("vibration_records", [])
+        if len(saved) >= MAX_VIBRATION_RECORDS:
+            raise ValueError(f"진동 기록은 최대 {MAX_VIBRATION_RECORDS}개입니다. 이전 기록을 정리하세요.")
+        record = {
+            **prepared,
+            "name": name.strip()[:100],
+            "owner": owner.strip()[:100],
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "app_build": APP_BUILD,
+        }
+        saved.append(record)
+        if not self.save():
+            saved.pop()
+            raise OSError(self.save_warning)
+        return record.copy()
+
+    def delete_vibration_records(self, indices):
+        saved = self.data.setdefault("vibration_records", [])
+        originals = saved[:]
+        for index in sorted(set(indices), reverse=True):
+            if isinstance(index, int) and 0 <= index < len(saved):
+                del saved[index]
+        if not self.save():
+            saved[:] = originals
+            raise OSError(self.save_warning)
+
+    def update_vibration_record(self, index, *, name=None, owner=None):
+        saved = self.data.setdefault("vibration_records", [])
+        if not isinstance(index, int) or not 0 <= index < len(saved):
+            raise IndexError("진동 기록을 찾지 못했습니다.")
+        old = saved[index].copy()
+        for key, value in (("name", name), ("owner", owner)):
+            if value is not None:
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError("기록명과 담당자를 입력하세요.")
+                saved[index][key] = value.strip()[:100]
+        if not self.save():
+            saved[index] = old
+            raise OSError(self.save_warning)
+
+    def engineering_records(self, kind=None):
+        saved = self.data.setdefault("engineering_records", [])
+        return [item.copy() for item in saved if kind is None or item.get("kind") == kind]
+
+    def add_engineering_record(self, kind, name, owner, payload):
+        if kind not in ("drawing", "measured_speed", "hoistway_simulation", "motor_component") or not isinstance(payload, dict):
+            raise ValueError("저장할 공학 데이터 기록을 확인하세요.")
+        if not isinstance(name, str) or not name.strip() or not isinstance(owner, str):
+            raise ValueError("기록명과 담당자를 확인하세요.")
+        saved = self.data.setdefault("engineering_records", [])
+        if len(saved) >= 100:
+            raise ValueError("공학 데이터 기록은 최대 100개입니다. 이전 기록을 정리하세요.")
+        record = {"kind": kind, "name": name.strip()[:100], "owner": owner.strip()[:100],
+                  "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                  "app_build": APP_BUILD, "payload": payload}
+        saved.append(record)
+        if not self.save():
+            saved.pop(); raise OSError(self.save_warning)
+        return record.copy()
+
+    def delete_engineering_records(self, kind, indices):
+        saved = self.data.setdefault("engineering_records", [])
+        positions = [i for i, item in enumerate(saved) if item.get("kind") == kind]
+        originals = saved[:]
+        for index in sorted(set(indices), reverse=True):
+            if isinstance(index, int) and 0 <= index < len(positions):
+                del saved[positions[index]]
+        if not self.save():
+            saved[:] = originals; raise OSError(self.save_warning)
+
+    def update_engineering_record(self, kind, index, *, name=None, owner=None):
+        saved = self.data.setdefault("engineering_records", [])
+        positions = [i for i, item in enumerate(saved) if item.get("kind") == kind]
+        if not isinstance(index, int) or not 0 <= index < len(positions):
+            raise IndexError("공학 데이터 기록을 찾지 못했습니다.")
+        pos = positions[index]; old = saved[pos].copy()
+        for key, value in (("name", name), ("owner", owner)):
+            if value is not None:
+                if not isinstance(value, str) or not value.strip(): raise ValueError("기록명과 담당자를 입력하세요.")
+                saved[pos][key] = value.strip()[:100]
+        if not self.save():
+            saved[pos] = old; raise OSError(self.save_warning)
 
     def graph_history(self, kind=None):
         return [

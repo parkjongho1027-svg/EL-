@@ -4,9 +4,14 @@ from pathlib import Path
 import math
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
+from src.ui.phase_annotations import PHASE_ENGLISH, phase_segments
+
 
 def _font(size):
     candidates = (
+        Path("C:/Windows/Fonts/malgun.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
         Path("C:/Windows/Fonts/arial.ttf"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
     )
@@ -30,6 +35,7 @@ def render_plot(profile, palette, reference=None, size=(820, 270), scale=2):
     d = ImageDraw.Draw(image)
     f = _font(10 * scale)
     title_font = _font(11 * scale)
+    has_korean_font = bytes(f.getmask("가")) != bytes(f.getmask("나"))
     left, right = 75 * scale, (width - 20) * scale
     profiles = (
         (("Reference", reference, "#4d9aff"), ("Candidate", profile, "#f3a450"))
@@ -52,6 +58,7 @@ def render_plot(profile, palette, reference=None, size=(820, 270), scale=2):
     time_step = nice_step(duration / 4)
     time_max = math.ceil(duration / time_step) * time_step
     electrical = reference is not None or "grid_kw_samples" in profile
+    phases = phase_segments(profile) if not electrical else ()
 
     def series(p, key):
         if key == "speed":
@@ -114,6 +121,13 @@ def render_plot(profile, palette, reference=None, size=(820, 270), scale=2):
                     fill=text,
                     font=f,
                 )
+        if phases:
+            separator = "#8797a8" if palette.get("background") == "#000000" else "#a4adb7"
+            for _number, _name, start, _end in phases[1:]:
+                x = left + (right - left) * start / time_max
+                for y in range(int(top), int(bottom), 7 * scale):
+                    d.line((x, y, x, min(bottom, y + 3 * scale)),
+                           fill=separator, width=max(1, scale // 2))
         for name, p, color in profiles:
             values = series(p, key)
             stride = max(1, math.ceil((len(values) - 1) / 1499))
@@ -129,6 +143,14 @@ def render_plot(profile, palette, reference=None, size=(820, 270), scale=2):
             ]
             if len(coords) > 1:
                 d.line(coords, fill=color, width=2 * scale, joint="curve")
+    if phases:
+        # 단계 명칭은 UI의 별도 '구간 안내'에 표시한다. 그래프에는 번호만 남긴다.
+        for number, _name, _start, _end in phases:
+            midpoint = (_start + _end) / 2
+            if (right - left) * (_end - _start) / time_max >= 13 * scale:
+                tick_x = left + (right - left) * midpoint / time_max
+                d.text((tick_x - 3 * scale, 52 * scale), str(number),
+                       fill=text, font=f)
     d.text((right - 56 * scale, H - 14 * scale), "Time (s)", fill=text, font=f)
     if reference:
         for index, (name, _, color) in enumerate(profiles):

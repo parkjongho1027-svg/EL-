@@ -1,7 +1,8 @@
-"""추적 가능한 전동기 부품 DB 기록과 검색을 담당하는 계산 보조 모듈.
+"""Traceable motor database records used by the design explorer.
 
-제조사 자료에 토크·속도·관성이 빠져 있는 경우가 있으므로,
-확인되지 않은 값을 0으로 만들지 않고 미확인(None) 상태로 보존한다.
+Only identity/provenance and rated power are mandatory. Manufacturer catalogues
+frequently omit torque, speed or rotor inertia, so those values are preserved as
+unknown instead of inventing zero/default values.
 """
 
 import math
@@ -16,7 +17,6 @@ ALIASES = {
 
 
 def _normalise_aliases(data):
-    """예전 파일의 항목명을 현재 항목명으로 맞춘다."""
     result = dict(data)
     for old, new in ALIASES.items():
         if new not in result and old in result:
@@ -25,7 +25,6 @@ def _normalise_aliases(data):
 
 
 def _positive_number(value, key, *, optional=False):
-    """숫자 항목이 유한한 양수인지 확인하고, 선택 항목은 빈값을 허용한다."""
     if optional and (value is None or (isinstance(value, str) and not value.strip())):
         return None
     if isinstance(value, bool):
@@ -40,11 +39,10 @@ def _positive_number(value, key, *, optional=False):
 
 
 def validate_motor_record(data):
-    """불러온 전동기 한 건의 필수값과 숫자 범위를 검사한다."""
     if not isinstance(data, dict):
         raise CalculationInputError("전동기 DB 항목은 객체여야 합니다.")
     data = _normalise_aliases(data)
-    missing = [key for key in REQUIRED_FIELDS if key not in data]
+    missing = [k for k in REQUIRED_FIELDS if k not in data]
     if missing:
         raise CalculationInputError("전동기 DB 필수 항목 누락: " + ", ".join(missing))
 
@@ -59,7 +57,8 @@ def validate_motor_record(data):
     for key in OPTIONAL_NUMERIC_FIELDS:
         result[key] = _positive_number(data.get(key), key, optional=True)
 
-    # 이후 버전에서 사용하는 선택 항목도 버리지 않고 그대로 보존한다.
+    # Future/extended selection fields are retained when present so imports do
+    # not discard traceable manufacturer data that v96 does not yet calculate on.
     for key in (
         "roping_ratio", "rated_load_kg", "car_speed_m_s", "traction_sheave_diameter_mm",
         "source_url", "note",
@@ -70,7 +69,6 @@ def validate_motor_record(data):
 
 
 def motor_matches(records, power_kw, required_torque_nm=None, tolerance=1e-6):
-    """필요 출력과 맞는 전동기를 찾고, 토크 자료가 있으면 함께 검토한다."""
     matches = []
     for item in records:
         payload = item.get("payload", item)

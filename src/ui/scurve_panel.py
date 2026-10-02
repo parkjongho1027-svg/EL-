@@ -107,7 +107,22 @@ class SCurvePanel(tk.Frame):
             entry.pack(side="left")
             self.entries[key] = entry
             entry.bind("<Return>", lambda _event: self.calculate(record=True))
-        self.plot = tk.Canvas(basic, height=255, highlightthickness=0)
+        # 곡선 안에는 구간 번호만 표시하고, 명칭은 별도 안내 영역에 둔다.
+        # 긴 단계명이 그래프 사이 공간을 차지하지 않아 속도/동력 곡선을 더 넓게 볼 수 있다.
+        phase_key = tk.Frame(basic, bg="white")
+        phase_key.pack(fill="x", padx=10, pady=(3, 4))
+        tk.Label(phase_key, text="구간 안내", bg="white",
+                 font=("맑은 고딕", 9, "bold")).grid(row=0, column=0, rowspan=2,
+                                                       sticky="nw", padx=(0, 12))
+        from src.core.hoistway import PHASE_NAMES
+        for index, name in enumerate(PHASE_NAMES, 1):
+            row = 0 if index <= 4 else 1
+            col = index if index <= 4 else index - 4
+            tk.Label(phase_key, text=f"{index} : {name}", bg="white", anchor="w",
+                     font=("맑은 고딕", 8)).grid(row=row, column=col, sticky="w",
+                                                 padx=(0, 16), pady=1)
+
+        self.plot = tk.Canvas(basic, height=320, highlightthickness=0)
         self.plot.pack(fill="x", padx=10, pady=(0, 5))
         self._simulation_actions(basic, "mechanical")
         self.plot.bind(

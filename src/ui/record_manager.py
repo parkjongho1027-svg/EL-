@@ -17,6 +17,7 @@ def open_record_manager(
     change_owner=None,
     multi_load=True,
     save_current=None,
+    close_on_load=False,
 ):
     window = tk.Toplevel(parent)
     window.title(title)
@@ -150,6 +151,8 @@ def open_record_manager(
             messagebox.showinfo(title, "불러올 기록 하나만 선택하세요.", parent=window)
             return
         load(chosen)
+        if close_on_load and window.winfo_exists():
+            window.destroy()
 
     def delete_selected():
         chosen = selected()

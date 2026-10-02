@@ -191,10 +191,13 @@ def _draw_simulation(canvas, kind, data, axes, profiles_override=None):
         if kind == "mechanical"
         else ((data["reference"], "#2879cc"), (data["candidate"], "#d37a28"))
     )
+    from src.ui.phase_annotations import phase_segments
+
+    phases = phase_segments(profiles[0][0]) if kind == "mechanical" and len(profiles) == 1 else ()
     topplots = (
         (45, h * 0.46, "속도 (m/s)", 0, axes["speed_max"], axes["speed_step"], "speed"),
         (
-            h * 0.60,
+            max(h * 0.60, h * 0.46 + (58 if phases else 0)),
             h - 42,
             "계통전력 (kW)" if kind == "electrical" else "기계동력 (kW)",
             axes["power_min"],
@@ -218,6 +221,10 @@ def _draw_simulation(canvas, kind, data, axes, profiles_override=None):
             y = bottom - (bottom - top) * (value - low) / (high - low)
             canvas.create_line(left, y, right, y, fill=grid)
             canvas.create_text(left - 7, y, text=f"{value:g}", anchor="e", fill=ink)
+        if phases:
+            for _number, _name, start, _end in phases[1:]:
+                x = left + (right - left) * start / axes["x_max"]
+                canvas.create_line(x, top, x, bottom, fill=grid, dash=(3, 4))
         for tick in range(round(axes["x_max"] / axes["x_step"]) + 1):
             time = tick * axes["x_step"]
             x = left + (right - left) * time / axes["x_max"]
@@ -248,6 +255,13 @@ def _draw_simulation(canvas, kind, data, axes, profiles_override=None):
             if len(coords) >= 4:
                 canvas.create_line(*coords, fill=color, width=2)
     canvas.create_text(right, h - 9, text="시간 (s)", anchor="e", fill=ink)
+    if phases:
+        for number, name, _start, _end in phases:
+            row, col = divmod(number - 1, 4)
+            canvas.create_text(left + (right - left) * col / 4,
+                               h * 0.46 + 4 + row * 15,
+                               text=f"{number} {name}", anchor="nw", fill=ink,
+                               font=("맑은 고딕", 8))
     if kind == "electrical" and profiles_override is None:
         canvas.create_text(
             left, 17, text="기준(파랑) / 후보(주황)", anchor="w", fill=ink

@@ -1,2 +1,3 @@
-# Pillow is optional: enables smoother on-screen rendering.
+# Runtime dependency used by src/ui/document_reader.py for text-based PDF extraction.
+# The core calculators and normal Tkinter calculation screens do not require it.
 pypdf==6.19.0

@@ -3,7 +3,7 @@
 import pytest
 
 from src.core.errors import CalculationInputError
-from src.core.hoistway import HoistwayTrip, trip_phase
+from src.core.hoistway import HoistwayTrip, PHASE_NAMES, trip_phase
 from src.core.trajectory import scurve_profile
 
 
@@ -36,12 +36,35 @@ def test_invalid_floor_selection_is_rejected(floors, start, end, height):
 
 
 def test_full_trip_displays_phases_in_order_when_cruise_exists():
-    profile = scurve_profile(40, 2, 1, .8, 1500)
-    samples = profile["samples"]
-    phases = [trip_phase(samples, index, profile["phase_durations_s"])
-              for index in range(len(samples))]
+    samples = scurve_profile(40, 2, 1, .8, 1500)["samples"]
+    phases = [trip_phase(samples, index) for index in range(len(samples))]
     changes = [phase for index, phase in enumerate(phases)
                if index == 0 or phase != phases[index - 1]]
-    assert changes == ["jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"]
+    assert changes == ["출발", "가속", "주행", "감속", "도착"]
     with pytest.raises(CalculationInputError):
         trip_phase(samples, len(samples))
+
+
+@pytest.mark.parametrize("distance,expected", [
+    (40, [*PHASE_NAMES, "도착"]),
+    (0.4, ["jerk", "가속라운드", "감속라운드", "착상부", "도착"]),
+])
+def test_seven_segment_labels_use_calculated_phase_durations(distance, expected):
+    profile = scurve_profile(distance, 2, 1, .8, 1500)
+    durations = profile["phase_durations_s"]
+    assert len(durations) == 7
+    assert sum(durations) == pytest.approx(profile["duration_s"])
+    samples = profile["samples"]
+    changes = []
+    for index in range(len(samples)):
+        phase = trip_phase(samples, index, durations)
+        if not changes or phase != changes[-1]:
+            changes.append(phase)
+    assert changes == expected
+
+
+def test_invalid_phase_durations_are_rejected():
+    samples = scurve_profile(10, 2, 1, .8, 1500)["samples"]
+    for durations in ((1, 2), (float("nan"),) * 7, (-1,) * 7):
+        with pytest.raises(CalculationInputError, match="구간 시간"):
+            trip_phase(samples, 1, durations)

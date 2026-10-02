@@ -1,4 +1,4 @@
-"""사용자가 불러온 진동 파일과 분석 결과를 다시 불러올 수 있게 보관한다."""
+"""Archive user-supplied vibration signals with reproducible comparison results."""
 
 import hashlib
 from pathlib import Path
@@ -13,7 +13,7 @@ _BLOB_NAME = re.compile(r"[0-9a-f]{64}\.(?:csv|wav)\Z")
 
 
 def archived_path(store, attachment):
-    """프로그램이 저장한 진동 첨부 파일의 안전한 경로를 반환한다."""
+    """Resolve only filenames produced by this application's content-addressed archive."""
     if not isinstance(attachment, dict):
         return None
     name = attachment.get("blob")
@@ -23,7 +23,6 @@ def archived_path(store, attachment):
 
 
 def _archive_file(directory, filename):
-    """CSV/WAV 원본을 해시 이름으로 복사해 기록과 원본을 연결한다."""
     source = Path(filename)
     extension = source.suffix.lower()
     if extension not in (".csv", ".wav"):
@@ -47,7 +46,9 @@ def _archive_file(directory, filename):
                 output_stream.write(chunk)
         blob = f"{digest.hexdigest()}{extension}"
         destination = directory / blob
-        if not (destination.is_file() and _file_digest(destination) == digest.hexdigest()):
+        if destination.is_file() and _file_digest(destination) == digest.hexdigest():
+            pass
+        else:
             temporary.replace(destination)
         return {"name": source.name[:150], "blob": blob, "sha256": digest.hexdigest()}
     except OSError as error:
@@ -58,7 +59,6 @@ def _archive_file(directory, filename):
 
 
 def _file_digest(path):
-    """저장 파일의 SHA-256 해시를 계산한다."""
     digest = hashlib.sha256()
     with path.open("rb") as source:
         while chunk := source.read(256 * 1024):
@@ -67,7 +67,7 @@ def _file_digest(path):
 
 
 def prepare_vibration_record(store, primary_path, baseline_path, sampling_hz):
-    """원본 파일을 먼저 보관한 뒤 그 복사본을 분석해 결과와 파일을 일치시킨다."""
+    """Copy first, then analyse the copies so the saved result matches the saved bytes."""
     folder = store.path.parent / "vibration_files"
     primary = _archive_file(folder, primary_path)
     baseline = _archive_file(folder, baseline_path) if baseline_path else None
@@ -87,7 +87,7 @@ def prepare_vibration_record(store, primary_path, baseline_path, sampling_hz):
 
 
 def result_only_record(primary_path, baseline_path, sampling_hz, data, comparison, reason):
-    """원본 보관에 실패해도 계산 결과 자체는 기록으로 남긴다."""
+    """Keep the analysed numbers when an original file cannot be archived."""
     return {
         "primary": {"name": Path(primary_path).name[:150], "blob": None},
         "baseline": {"name": Path(baseline_path).name[:150], "blob": None} if baseline_path else None,
@@ -99,7 +99,7 @@ def result_only_record(primary_path, baseline_path, sampling_hz, data, compariso
 
 
 def remove_unreferenced_files(store):
-    """어떤 기록에서도 사용하지 않는 진동 첨부 파일만 정리한다."""
+    """Retain shared blobs until the last record referring to them is removed."""
     folder = store.path.parent / "vibration_files"
     if not folder.is_dir():
         return

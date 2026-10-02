@@ -103,16 +103,23 @@ def test_speed_log_rejects_corruption_and_preserves_interpolated_error(tmp_path)
 
 
 def test_component_spec_needs_provenance_and_physical_units(tmp_path):
-    spec = {"maker": "사용자 입력", "model": "A", "source": "승인 도면 2쪽",
-            "rope_kg_m": 0.8, "sheave_radius_m": 0.4,
-            "motor_inertia_kg_m2": 2, "motor_options_kw": [11, 15]}
+    spec = {
+        "motor_maker": "Motor Co", "motor_model": "M1", "motor_source": "motor catalog p.2",
+        "rope_maker": "Rope Co", "rope_model": "R1", "rope_source": "rope catalog p.4",
+        "sheave_maker": "Sheave Co", "sheave_model": "S1", "sheave_source": "drawing A-1",
+        "rope_kg_m": 0.8, "sheave_radius_m": 0.4,
+        "motor_inertia_kg_m2": 2, "motor_options_kw": [11, 15]
+    }
     file = tmp_path / "parts.json"
     file.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
-    assert load_component_spec(file) == ComponentSpec(
-        "사용자 입력", "A", "승인 도면 2쪽", 0.8, 0.4, 2, (11, 15)
-    )
-    for invalid in ({**spec, "source": ""}, {**spec, "rope_kg_m": -1},
-                    {**spec, "motor_options_kw": [True]}, {**spec, "unknown": 7}):
+    loaded = load_component_spec(file)
+    assert loaded.motor_maker == "Motor Co"
+    assert loaded.rope_model == "R1"
+    assert loaded.sheave_source == "drawing A-1"
+    assert loaded.motor_options_kw == (11, 15)
+    for invalid in ({**spec, "motor_source": ""}, {**spec, "rope_source": ""},
+                    {**spec, "rope_kg_m": -1}, {**spec, "motor_options_kw": [True]},
+                    {**spec, "unknown": 7}):
         file.write_text(json.dumps(invalid, ensure_ascii=False), encoding="utf-8")
         with pytest.raises(CalculationInputError):
             load_component_spec(file)
@@ -193,6 +200,61 @@ def test_document_extraction_keeps_original_lines_and_normalizes_units():
     assert all(item.source_line for item in matches)
 
 
+def test_english_drawing_labels_extract_all_six_fields():
+    matches = extract_fields(
+        "Rated load 1000 kg\nRated speed 1.75 m/s\nTravel 30 m\n"
+        "Car mass 1,200 kg\nMotor power 15 kW\nNumber of ropes 6\n"
+    )
+    assert [(item.key, item.value, item.unit) for item in matches] == [
+        ("rated_load_kg", 1000, "kg"),
+        ("speed_m_s", 1.75, "m/s"),
+        ("distance_m", 30, "m"),
+        ("car_kg", 1200, "kg"),
+        ("motor_kw", 15, "kW"),
+        ("rope_count", 6, "가닥"),
+    ]
+    assert matches[1].source_line == "Rated speed 1.75 m/s"
+
+
+def test_english_label_units_convert_and_unrelated_text_is_ignored():
+    matches = extract_fields(
+        "RATED SPEED: 120 m/min\nTRAVEL DISTANCE = 30,000 mm\n"
+        "Selected motor capacity: 18.5 KW\nCar weight 1450 kg\n"
+        "Rope count 8\n"
+        "unrated load 900 kg\nTravel time 20 s\n"
+        "Rope diameter 10 mm\nMotor power 150 W\n"
+        "Rated load 3 kg/m\nCar mass 0 kg\nRopes 6.5\n"
+        "Travel 200 m²\nRated speed 0.8 m/s²\n"
+    )
+    assert [(item.key, item.value) for item in matches] == [
+        ("speed_m_s", 2),
+        ("distance_m", 30),
+        ("motor_kw", 18.5),
+        ("car_kg", 1450),
+        ("rope_count", 8),
+    ]
+
+
+def test_pdf_table_with_labels_and_values_on_separate_lines():
+    # pypdf's ordinary extraction of the user's synthetic two-column PDF
+    # produces these alternating lines, even though the visible rows align.
+    extracted_text = (
+        "Item\nSpecified value\nRated load\n1000 kg\nRated speed\n1.75 m/s\n"
+        "Travel\n30 m\nCar mass\n1400 kg\n"
+        "Traction sheave diameter\n600 mm\nRope diameter\n10 mm\n"
+        "Number of ropes\n6\nMotor rated power\n22 kW\n"
+        "Motor voltage\n380 V\nDoor opening width\n900 mm\n"
+    )
+    candidates = extract_fields(extracted_text)
+    assert [(item.key, item.value) for item in candidates] == [
+        ("rated_load_kg", 1000), ("speed_m_s", 1.75),
+        ("distance_m", 30), ("car_kg", 1400),
+        ("rope_count", 6), ("motor_kw", 22),
+    ]
+    assert candidates[0].source_line == "Rated load | 1000 kg"
+    assert extract_fields("Rated load\nMotor voltage\n380 V") == []
+
+
 def test_document_rejects_oversize_input_and_ignores_unlabelled_values():
     with pytest.raises(CalculationInputError):
         extract_fields("x" * 500001)
@@ -219,3 +281,54 @@ def test_pdf_text_reader_routes_verified_candidates(tmp_path, monkeypatch):
         ("speed_m_s", 2),
         ("car_kg", 1000),
     ]
+
+
+def test_pdf_text_reader_accepts_english_drawing_lines(tmp_path, monkeypatch):
+    import pypdf
+
+    source = tmp_path / "english_design.pdf"
+    source.write_bytes(b"PDF test stub")
+
+    class Page:
+        def extract_text(self):
+            return ("Rated load 1000 kg\nRated speed 1.75 m/s\n"
+                    "Travel 30 m\nCar mass 1200 kg\nMotor power 15 kW")
+
+    class Reader:
+        def __init__(self, _path):
+            self.pages = [Page()]
+
+    monkeypatch.setattr(pypdf, "PdfReader", Reader)
+    assert [(item.key, item.value) for item in read_document(source)] == [
+        ("rated_load_kg", 1000), ("speed_m_s", 1.75),
+        ("distance_m", 30), ("car_kg", 1200), ("motor_kw", 15),
+    ]
+
+
+def test_pdf_reader_prefers_table_layout_and_falls_back_to_plain(tmp_path, monkeypatch):
+    import pypdf
+
+    source = tmp_path / "two_columns.pdf"
+    source.write_bytes(b"PDF test stub")
+
+    class Page:
+        def __init__(self, layout, plain):
+            self.layout, self.plain = layout, plain
+
+        def extract_text(self, extraction_mode=None):
+            return self.layout if extraction_mode == "layout" else self.plain
+
+    class Reader:
+        def __init__(self, _path):
+            self.pages = [
+                Page("Rated load      1000 kg\nMotor rated power     22 kW",
+                     "Rated load\n1000 kg\nMotor rated power\n22 kW"),
+                Page("Header\nNo matches", "Rated speed\n120 m/min"),
+            ]
+
+    monkeypatch.setattr(pypdf, "PdfReader", Reader)
+    matches = read_document(source)
+    assert [(match.key, match.value) for match in matches] == [
+        ("rated_load_kg", 1000), ("motor_kw", 22), ("speed_m_s", 2),
+    ]
+    assert matches[0].source_line == "Rated load 1000 kg"

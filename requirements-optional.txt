@@ -1,0 +1,7 @@
+# Optional runtime enhancements. The application still starts without these.
+# Pillow: smoother Tk graph text/rendering and PIL-based PNG paths.
+Pillow==12.3.0
+
+# OCR of image/scanned PDFs additionally requires the external Tesseract executable.
+# PyMuPDF is needed only when rasterizing scanned PDF pages for OCR.
+PyMuPDF>=1.26,<2
