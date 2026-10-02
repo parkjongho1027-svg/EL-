@@ -58,7 +58,7 @@ Git 이전에 복구된 원본 목록과 무결성 해시는 [archive/README.md]
 
 ## 실행
 
-Python 3.10 이상과 Tkinter가 필요합니다. 이 버전은 Python 3.12에서 자동 검사를 실행했습니다. **Python 3.14 / Windows 실행 파일은 이 작업 환경에서 실행 검증하지 않았습니다.** Pillow는 그래프의 부드러운 글꼴과 렌더링을 위한 선택 항목이며, 설치되지 않아도 표준 라이브러리 PNG 렌더러를 사용합니다.
+Python 3.10 이상과 Tkinter가 필요합니다. v99는 GitHub Actions에서 Python 3.12·3.14 테스트를 통과했고 Windows 실행 파일을 빌드한 뒤 패키징된 EXE의 `--self-test`까지 통과했습니다. Pillow는 그래프의 부드러운 글꼴과 렌더링을 위한 선택 항목이며, 설치되지 않아도 표준 라이브러리 PNG 렌더러를 사용합니다.
 
 ```bash
 python main.py
