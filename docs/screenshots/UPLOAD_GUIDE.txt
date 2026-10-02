@@ -1,0 +1,7 @@
+GitHub 업로드 위치:
+docs/screenshots/
+
+이 폴더의 PNG 23장을 파일명 변경 없이 전부 업로드하세요.
+README_SCREENSHOTS_BLOCK.md는 참고용이며 이미지와 함께 올릴 필요는 없습니다.
+
+업로드가 끝나면 ChatGPT에 '23장 올렸어'라고 말하면 README.md에 자동 연결 작업을 이어서 진행합니다.
