@@ -36,10 +36,12 @@ def test_invalid_floor_selection_is_rejected(floors, start, end, height):
 
 
 def test_full_trip_displays_phases_in_order_when_cruise_exists():
-    samples = scurve_profile(40, 2, 1, .8, 1500)["samples"]
-    phases = [trip_phase(samples, index) for index in range(len(samples))]
+    profile = scurve_profile(40, 2, 1, .8, 1500)
+    samples = profile["samples"]
+    phases = [trip_phase(samples, index, profile["phase_durations_s"])
+              for index in range(len(samples))]
     changes = [phase for index, phase in enumerate(phases)
                if index == 0 or phase != phases[index - 1]]
-    assert changes == ["Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"]
+    assert changes == ["jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착"]
     with pytest.raises(CalculationInputError):
         trip_phase(samples, len(samples))
