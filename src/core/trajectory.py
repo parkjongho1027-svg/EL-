@@ -76,6 +76,7 @@ def scurve_profile(distance, vmax, amax, jerk, moving_mass, imbalance_force=0, s
     if not all(math.isfinite(number) for number in (motoring_wh, braking_wh, t, x, v, a)):
         raise CalculationInputError('운행 에너지 계산값의 숫자 범위를 확인하세요.')
     return {'duration_s':t,'peak_speed_m_s':vp,'cruise_s':tc,'samples':samples,
+            'phase_durations_s':tuple(duration for _jerk, duration in phases),
             'peak_mechanical_kw':max(row[4] for row in samples),
             'signed_mechanical_kw_samples':signed_kw,
             'peak_motoring_kw':max(signed_kw), 'peak_braking_kw':min(signed_kw),
