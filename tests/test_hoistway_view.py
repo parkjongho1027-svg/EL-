@@ -103,7 +103,7 @@ def test_reaching_last_sample_updates_departure_and_draws_car_floor(monkeypatch)
         canvas=Chart(), structure_key=None,
         draw_structure=lambda *_args: None,
         phase_label=label,
-        phase_labels={phase: label for phase in ("Jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착")},
+        phase_labels={phase: label for phase in ("jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부", "도착")},
         status_label=label, phase_description=label,
         draw_miniature=lambda *_args: None,
         start_floor=FloorValue(1), arrived=False,
