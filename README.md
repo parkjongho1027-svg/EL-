@@ -21,22 +21,69 @@
 
 ### 대표 실행 화면
 
-아래 이미지는 **v99.0.0 실제 실행 화면**에서 핵심 기능만 골라 정리한 것입니다.
+실행 화면은 **글자가 읽히도록 원본 크기 화면을 개별로 표시**합니다. 작은 콜라주 이미지는 사용하지 않습니다.
 
 #### 1) 핵심 계산 · 시뮬레이션
-전동기 용량, 트랙션비, 브레이크 제동, 교통량, KC 기준 검토, S-Curve·승강로 위치를 한 프로그램에서 확인할 수 있습니다.
+전동기 용량 계산 화면입니다. 입력값, 계산 결과와 계산 과정을 한 화면에서 확인할 수 있습니다.
 
-![v99 핵심 계산 및 시뮬레이션](docs/v99_overview.jpg)
+![v99 전동기 용량 계산](docs/screenshots/v99_motor_capacity.png)
+
+<details>
+<summary><strong>핵심 계산 · 시뮬레이션 화면 더 보기</strong></summary>
+
+<br>
+
+![v99 트랙션비 계산](docs/screenshots/v99_traction_ratio.png)
+
+![v99 브레이크 제동](docs/screenshots/v99_brake.png)
+
+![v99 교통량 분석](docs/screenshots/v99_traffic.png)
+
+![v99 KC 기준 검토](docs/screenshots/v99_kc_review.png)
+
+![v99 S-Curve 시뮬레이션](docs/screenshots/v99_scurve.png)
+
+![v99 승강로 위치 시뮬레이션](docs/screenshots/v99_hoistway.png)
+
+</details>
 
 #### 2) 공학 데이터 도구
-설계 후보 탐색, 전동기 부품 DB, 진동 CSV/WAV 분석, 도면 입력 후보 추출, 실측 속도 비교를 지원합니다.
+진동 분석, 도면 입력 후보 추출, 실측 속도 비교 등 실제 데이터 파일을 이용하는 보조 기능입니다.
 
-![v99 공학 데이터 도구](docs/v99_engineering_tools.jpg)
+![v99 공학 데이터 도구 - 진동 분석](docs/screenshots/v99_vibration.png)
+
+<details>
+<summary><strong>공학 데이터 도구 화면 더 보기</strong></summary>
+
+<br>
+
+![v99 설계 후보 탐색](docs/screenshots/v99_design_candidates.png)
+
+![v99 전동기 부품 DB](docs/screenshots/v99_motor_db.png)
+
+![v99 도면 입력 후보 추출](docs/screenshots/v99_drawing_extract.png)
+
+![v99 실측 속도 비교](docs/screenshots/v99_speed_compare.png)
+
+</details>
 
 #### 3) 프로젝트 · 검토 · 설정
-프로젝트 저장/불러오기, 통합 계산, 설정, 한국어/영어 UI 등 반복 검토를 위한 기능을 함께 제공합니다.
+프로젝트 저장·불러오기와 통합 계산 등 반복 검토에 필요한 기능입니다.
 
-![v99 프로젝트 및 검토 기능](docs/v99_management_review.jpg)
+![v99 통합 계산](docs/screenshots/v99_integrated_result.png)
+
+<details>
+<summary><strong>프로젝트 · 설정 화면 더 보기</strong></summary>
+
+<br>
+
+![v99 프로젝트 관리](docs/screenshots/v99_project_management.png)
+
+![v99 프로그램 설정](docs/screenshots/v99_settings.png)
+
+![v99 영어 UI](docs/screenshots/v99_english_ui.png)
+
+</details>
 
 <details>
 <summary><strong>전체 기능 · 계산 가정 · 테스트 · 개발 이력 자세히 보기</strong></summary>
