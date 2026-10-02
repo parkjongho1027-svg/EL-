@@ -50,36 +50,41 @@ class HoistwayTrip:
         return car, self.height_m - car
 
 
-def trip_phase(samples, index):
-    """현재 S-Curve 표본이 8단계 운행 상태 중 어디에 해당하는지 구한다."""
+PHASE_NAMES = ("jerk", "일정가속", "가속라운드", "전속", "감속라운드", "일정감속", "착상부")
+
+
+def trip_phase(samples, index, phase_durations_s=None):
+    """v98과 같은 7개 S-Curve 구간 시간을 기준으로 현재 상태를 구한다."""
     if not samples or not 0 <= index < len(samples):
         raise CalculationInputError("운행 표본의 위치가 올바르지 않습니다.")
+    if phase_durations_s is not None:
+        if (not isinstance(phase_durations_s, (tuple, list))
+                or len(phase_durations_s) != len(PHASE_NAMES)
+                or any(isinstance(value, bool)
+                       or not isinstance(value, (float, int))
+                       or not math.isfinite(value) or value < 0
+                       for value in phase_durations_s)):
+            raise CalculationInputError("운행 구간 시간은 유한한 0 이상 숫자 7개여야 합니다.")
+        if index == len(samples) - 1:
+            return "도착"
+        time = samples[index][0]
+        elapsed = 0.0
+        for name, duration in zip(PHASE_NAMES, phase_durations_s):
+            if duration <= 1e-12:
+                continue
+            elapsed += duration
+            if time <= elapsed + 1e-9:
+                return name
+        return "착상부"
+
+    # 이전 형식의 프로필도 열 수 있도록 단순 상태 판정을 남긴다.
+    if index == 0:
+        return "출발"
     if index == len(samples) - 1:
         return "도착"
-    if index == 0:
-        return "Jerk"
-
-    _t, _x, velocity, acceleration, _power = samples[index]
-    prev_a = samples[index - 1][3]
-    next_a = samples[index + 1][3] if index + 1 < len(samples) else acceleration
-    da = next_a - prev_a
-    eps_a, eps_j, eps_v = 1e-6, 1e-7, 1e-6
-
-    # 현재 가속도의 부호와 앞뒤 표본의 가속도 변화를 함께 보고
-    # Jerk → 일정가속 → 가속라운드 → 전속 → 감속라운드
-    # → 일정감속 → 착상부 → 도착 순서의 상태를 구분한다.
-    if acceleration > eps_a:
-        if da > eps_j:
-            return "Jerk"
-        if da < -eps_j:
-            return "가속라운드"
-        return "일정가속"
-    if acceleration < -eps_a:
-        if da < -eps_j:
-            return "감속라운드"
-        if da > eps_j:
-            return "착상부"
-        return "일정감속"
-    if velocity > eps_v:
-        return "전속"
-    return "Jerk"
+    acceleration = samples[index][3]
+    if acceleration > 1e-6:
+        return "가속"
+    if acceleration < -1e-6:
+        return "감속"
+    return "주행"
